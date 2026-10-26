@@ -956,7 +956,7 @@ function usernameToEmail(username) {
 // The shared server demands 12+ characters with upper, lower and digit. The office chooses any password of 6+;
 // a fixed suffix satisfies the server rule. Strength is that of the typed password, which is the office's choice.
 const stretch = (pw) => pw + "·Aa1-office-pilot";
-let myRole = "member";
+let myRole = "member", myUserId = null;
 
 // Shared API for the advance-payments tab (advance.js).
 window.OfficePilot = {
@@ -1438,7 +1438,15 @@ const SITE_URL = "https://tzahimor85-sketch.github.io/office-pilot/";
 async function loadUsers() {
   try {
     const { users } = await adminFn({ action: "listUsers" });
-    $("users-list").innerHTML = users.map((u) => `<div class="user-row"><b>${esc(u.username)}</b><span class="pill ${u.role === "admin" ? "blue" : "gray"}">${u.role === "admin" ? "מנהל" : "משתמש"}</span>${u.banned ? '<span class="pill red">חסום</span>' : ""}<button class="btn ghost small" data-reset="${u.userId}" data-name="${esc(u.username)}">סיסמה חדשה</button><button class="btn ghost small" data-mfa-reset="${u.userId}" data-name="${esc(u.username)}">איפוס הטלפון</button></div>`).join("");
+    $("users-list").innerHTML = users.map((u) => `<div class="user-row"><b>${esc(u.username)}</b><span class="pill ${u.role === "admin" ? "blue" : "gray"}">${u.role === "admin" ? "מנהל" : "משתמש"}</span>${u.banned ? '<span class="pill red">חסום</span>' : ""}<button class="btn ghost small" data-reset="${u.userId}" data-name="${esc(u.username)}">סיסמה חדשה</button><button class="btn ghost small" data-mfa-reset="${u.userId}" data-name="${esc(u.username)}">איפוס הטלפון</button>${u.userId === myUserId ? "" : `<button class="btn danger small" data-remove="${u.userId}" data-name="${esc(u.username)}">מחק משתמש</button>`}</div>`).join("");
+    document.querySelectorAll("[data-remove]").forEach((b) => (b.onclick = () => {
+      $("u-result").innerHTML = `<div class="warn">למחוק את המשתמש <b>${esc(b.dataset.name)}</b>? הוא לא יוכל להיכנס יותר, ושם המשתמש יתפנה. הנתונים של המשרד לא נמחקים. <button class="btn danger small" id="rm-yes">כן, למחוק</button> <button class="btn ghost small" id="rm-no">ביטול</button></div>`;
+      $("rm-no").onclick = () => ($("u-result").innerHTML = "");
+      $("rm-yes").onclick = async () => {
+        try { await adminFn({ action: "removeUser", userId: b.dataset.remove }); $("u-result").innerHTML = `<p class="note">המשתמש ${esc(b.dataset.name)} נמחק.</p>`; loadUsers(); }
+        catch (e) { $("u-result").innerHTML = `<p class="warn">${esc(e.message)}</p>`; }
+      };
+    }));
     document.querySelectorAll("[data-reset]").forEach((b) => (b.onclick = () => resetPw(b.dataset.reset, b.dataset.name)));
     document.querySelectorAll("[data-mfa-reset]").forEach((b) => (b.onclick = async () => {
       try { await adminFn({ action: "resetMfa", userId: b.dataset.mfaReset }); $("u-result").innerHTML = `<p class="note">אופס הטלפון של ${esc(b.dataset.name)}. בכניסה הבאה יסרוק קוד חדש.</p>`; }
@@ -1537,6 +1545,7 @@ async function enterOffice() {
   }
   officeId = m.office_id;
   myRole = m.role;
+  myUserId = (await sb.auth.getUser()).data.user?.id ?? null;
   document.querySelectorAll(".cloud-only").forEach((e) => (e.hidden = false));
   document.querySelectorAll(".local-only").forEach((e) => (e.hidden = true));
   document.querySelectorAll(".admin-only").forEach((e) => (e.hidden = myRole !== "admin"));
