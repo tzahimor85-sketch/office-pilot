@@ -90,6 +90,9 @@ tr.fresh td { background: var(--green-soft); }
 
 .cred { border: 1px dashed var(--accent); border-radius: 10px; padding: 12px; display: grid; gap: 8px; background: var(--accent-soft); }
 .user-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); }
+
+textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); max-width: 100%; }
+#mail-template-box summary { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -187,9 +190,26 @@ tr.fresh td { background: var(--green-soft); }
   </section>
 
   <section class="panel" id="p-mail" hidden>
-    <p class="muted">כך ייראה המייל השבועי למשרד. בגרסת הפיילוט הוא לא נשלח לבד. אפשר להעתיק אותו ולשלוח ידנית.</p>
-    <div class="mail" id="mail"></div>
-    <div><button class="btn ghost" id="copy-mail">העתק את המייל</button> <span class="sub" id="copy-ok"></span></div>
+    <p class="muted">זה המייל השבועי למשרד: מה הבעיה אצל כל לקוח ומה לעשות. בגרסת הפיילוט הוא לא נשלח לבד. אפשר לתקן אותו כאן, ואז להעתיק או לשלוח.</p>
+    <div class="warn" id="mail-example" hidden>עוד אין לקוחות במשרד, ולכן מוצג מייל לדוגמה. כך ייראה המייל כשיהיו לקוחות עם אישורים שצריכים טיפול.</div>
+    <div class="mail">
+      <div class="field"><label for="mail-subject">נושא</label><input id="mail-subject"></div>
+      <div class="field"><label for="mail-text">תוכן המייל (אפשר לערוך)</label><textarea id="mail-text" rows="22" style="font:inherit;line-height:1.6;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);resize:vertical"></textarea></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="copy-mail">העתק את המייל</button>
+        <a class="btn ghost" id="mail-send" href="#">פתח במייל</a>
+        <button class="btn ghost" id="mail-reset">חזרה לנוסח המלא</button>
+        <span class="sub" id="copy-ok"></span>
+      </div>
+    </div>
+    <details class="card" id="mail-template-box">
+      <summary><b>תבנית המייל: פתיחה, סגירה וחתימה</b></summary>
+      <p class="sub">השינויים כאן נשמרים לכל המיילים הבאים. אפשר להשתמש ב-{תאריך} (תאריך העדכון האחרון מרשות המסים) וב-{קישור} (הקישור לאתר).</p>
+      <div class="field"><label for="mt-opening">פתיחה</label><textarea id="mt-opening" rows="3"></textarea></div>
+      <div class="field"><label for="mt-closing">סגירה</label><textarea id="mt-closing" rows="3"></textarea></div>
+      <div class="field"><label for="mt-signature">חתימה</label><input id="mt-signature"></div>
+      <div><button class="btn small" id="mt-save">שמור תבנית</button> <button class="btn ghost small" id="mt-default">חזרה לברירת המחדל</button> <span class="sub" id="mt-msg"></span></div>
+    </details>
   </section>
 
   <section class="panel" id="p-advance" hidden>
@@ -1119,35 +1139,85 @@ $("load-results").onclick = async () => {
 };
 
 // ---------- weekly email
-function renderMail() {
-  const items = state.clients.map((c) => {
+// The email explains each problem and what to do about it. Opening, closing and signature are an editable
+// template (state.settings.mail); the generated text can also be edited by hand before copying.
+const MAIL_DEFAULT = {
+  opening: "זה העדכון השבועי של אישורי ניכוי מס במקור וניהול ספרים של לקוחות המשרד. הנתונים מרשות המסים עודכנו לאחרונה ב-{תאריך}.",
+  closing: "המייל יישלח שוב בשבוע הבא, עד שכל הלקוחות ברשימה יטופלו. לרשימה המלאה ולסימון טיפול: {קישור}",
+  signature: "מערכת מעקב אישורים ומקדמות",
+};
+const mailTemplate = () => ({ ...MAIL_DEFAULT, ...(state.settings.mail || {}) });
+const ACTION = {
+  expired: "מה לעשות: להגיש לרשות המסים בקשה לחידוש, ולבדוק אם יש ליקויים בתיק (דוח שלא הוגש, חוב).",
+  no_certificate: "מה לעשות: לבדוק בתיק מה חוסם את האישור. בדרך כלל זה דוח שלא הוגש או חוב, ומטפלים בזה מול פקיד השומה.",
+  renew_soon: "מה לעשות: לוודא שאין ליקויים בתיק. אם אין, רשות המסים מחדשת את האישור לבד. אם יש, לטפל בהם לפני התאריך.",
+  done_waiting: "מה לעשות: סומן טופל, אבל האישור החדש עוד לא מופיע ברשות המסים. כדאי לבדוק מול פקיד השומה.",
+  in_progress: "בטיפול המשרד.",
+};
+const EXAMPLE_ITEMS = () => [
+  { client: { clientId: "x1", name: "מאפיית גולן בע\"מ" }, status: { key: "expired", which: "withholding", daysLeft: -11, urgent: true }, end: "2026-10-15", booksEnd: "2027-03-31" },
+  { client: { clientId: "x2", name: "בר-טל הובלות בע\"מ" }, status: { key: "no_certificate", which: null, daysLeft: null, urgent: true }, end: null, booksEnd: null },
+  { client: { clientId: "x3", name: "שירן הנדסה בע\"מ" }, status: { key: "renew_soon", which: "both", daysLeft: 15, urgent: false }, end: "2026-11-10", booksEnd: "2026-11-10" },
+  { client: { clientId: "x4", name: "סטודיו נועה כהן" }, status: { key: "renew_soon", which: "books", daysLeft: 20, urgent: false }, end: "2027-03-31", booksEnd: "2026-11-15" },
+  { client: { clientId: "x5", name: "גל-אור מערכות מיזוג" }, status: { key: "in_progress", which: "withholding", daysLeft: 29, urgent: false }, end: "2026-11-24", booksEnd: "2026-11-24" },
+];
+let mailEdited = false;
+function buildMail() {
+  const example = state.clients.length === 0;
+  const items = example ? EXAMPLE_ITEMS() : state.clients.map((c) => {
     const rec = recordOf(c);
     const end = rec ? effectiveEnd(rec.withholding.end ?? "", state.settings.extensions) || null : null;
     const booksEnd = rec ? effectiveEnd(rec.books.end ?? "", state.settings.extensions) || null : null;
     return { client: c, status: statusOf(c), end, booksEnd };
   });
   const d = buildDigest(items);
-  // advance-payments lines come from advance.js through OfficePilot.advanceDigest (strings), if it provides them
+  // advance-payments lines come from advance.js through OfficePilot.advanceDigest (strings)
   let adv = [];
-  try { adv = (window.OfficePilot.advanceDigest?.() || []).filter(Boolean); } catch {}
-  const advHtml = adv.length ? `<p><b>מקדמות:</b></p><ul>${adv.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
-  const advText = adv.length ? "מקדמות:\n" + adv.map((x) => "- " + x).join("\n") + "\n\n" : "";
-  if (!d && !adv.length) { $("mail").innerHTML = `<p>אין השבוע לקוחות שצריכים טיפול, ולכן לא יישלח מייל.</p>`; return ""; }
-  if (!d) {
-    $("mail").innerHTML = `<div><span class="muted">נושא:</span> <b>עדכון מקדמות</b></div><p>שלום,</p>` + advHtml;
-    return "עדכון מקדמות\n\nשלום,\n\n" + advText;
-  }
-  const block = (title, list) => list.length ? `<p><b>${title}</b></p><ul>${list.map((x) => `<li>${esc(x.line)}</li>`).join("")}</ul>` : "";
-  $("mail").innerHTML = `<div><span class="muted">נושא:</span> <b>${esc(d.subject)}</b></div><p>שלום,</p>`
-    + block("דחוף:", d.urgent) + block("פג בחודש הקרוב:", d.soon) + block("בטיפול:", d.inProgress) + advHtml
-    + `<p class="sub">המייל נשלח שוב בכל שבוע, עד שכל לקוח ברשימה מטופל.</p>`;
-  const text = (title, list) => list.length ? `${title}\n${list.map((x) => "- " + x.line).join("\n")}\n\n` : "";
-  return `${d.subject}\n\nשלום,\n\n` + text("דחוף:", d.urgent) + text("פג בחודש הקרוב:", d.soon) + text("בטיפול:", d.inProgress) + advText;
+  if (!example) { try { adv = (window.OfficePilot.advanceDigest?.() || []).filter(Boolean); } catch {} }
+  const t = mailTemplate();
+  const fill = (s) => s.replaceAll("{תאריך}", state.lastRun ? formatDate(state.lastRun.at) : "—").replaceAll("{קישור}", CLOUD ? SITE_URL : "האתר של המשרד");
+  if (!d && !adv.length) return { example, subject: "", text: "" };
+  const part = (title, list) => !list.length ? "" : `${title}\n\n` + list.map((x) => `• ${x.line}\n  ${ACTION[x.status.key] ?? ""}`.trimEnd()).join("\n\n") + "\n\n";
+  const counts = d ? [d.urgent.length && `${d.urgent.length} דחופים`, d.soon.length && `${d.soon.length} שיפוגו בחודש הקרוב`, d.inProgress.length && `${d.inProgress.length} בטיפול`].filter(Boolean).join(", ") : "";
+  const subject = d ? d.subject : "עדכון מקדמות";
+  const text = "שלום,\n\n" + fill(t.opening) + "\n\n"
+    + (counts ? `השבוע: ${counts}.\n\n` : "")
+    + (d ? part("דחוף, לטפל השבוע:", d.urgent) + part("יפוג בחודש הקרוב:", d.soon) + part("בטיפול:", d.inProgress) : "")
+    + (adv.length ? "מקדמות:\n\n" + adv.map((x) => "• " + x).join("\n") + "\n\n" : "")
+    + fill(t.closing) + "\n\n" + t.signature;
+  return { example, subject, text };
 }
-$("copy-mail").onclick = async () => {
-  try { await navigator.clipboard.writeText(renderMail()); $("copy-ok").textContent = "הועתק"; }
-  catch { $("copy-ok").textContent = "ההעתקה לא הצליחה. אפשר לסמן את הטקסט ולהעתיק ידנית."; }
+function renderMail(force = false) {
+  const m = buildMail();
+  $("mail-example").hidden = !m.example;
+  if (!m.text) {
+    $("mail-subject").value = "";
+    $("mail-text").value = "אין השבוע לקוחות שצריכים טיפול, ולכן לא יישלח מייל.";
+    return m;
+  }
+  if (!mailEdited || force) { $("mail-subject").value = m.subject; $("mail-text").value = m.text; mailEdited = false; }
+  const t = mailTemplate();
+  if (document.activeElement?.closest?.("#mail-template-box") == null) {
+    $("mt-opening").value = t.opening; $("mt-closing").value = t.closing; $("mt-signature").value = t.signature;
+  }
+  return m;
+}
+$("mail-text").oninput = () => { mailEdited = true; };
+$("mail-subject").oninput = () => { mailEdited = true; };
+$("mail-reset").onclick = () => renderMail(true);
+$("mail-send").onclick = (e) => {
+  e.preventDefault();
+  location.href = `mailto:?subject=${encodeURIComponent($("mail-subject").value)}&body=${encodeURIComponent($("mail-text").value)}`;
 };
+$("copy-mail").onclick = async () => {
+  try { await navigator.clipboard.writeText($("mail-subject").value + "\n\n" + $("mail-text").value); $("copy-ok").textContent = "הועתק"; }
+  catch { $("mail-text").select(); $("copy-ok").textContent = "הטקסט מסומן. אפשר להעתיק עם Ctrl+C."; }
+};
+$("mt-save").onclick = () => {
+  state.settings.mail = { opening: $("mt-opening").value.trim(), closing: $("mt-closing").value.trim(), signature: $("mt-signature").value.trim() };
+  save(); renderMail(true); $("mt-msg").textContent = "נשמר";
+};
+$("mt-default").onclick = () => { delete state.settings.mail; save(); renderMail(true); $("mt-msg").textContent = "הוחזר לברירת המחדל"; };
 
 // ---------- settings
 function renderSettings() {
