@@ -1131,19 +1131,11 @@ function renderMail() {
   let adv = [];
   try { adv = (window.OfficePilot.advanceDigest?.() || []).filter(Boolean); } catch {}
   const advHtml = adv.length ? `<p><b>מקדמות:</b></p><ul>${adv.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
-  const advText = adv.length ? `מקדמות:
-${adv.map((x) => "- " + x).join("
-")}
-
-` : "";
+  const advText = adv.length ? "מקדמות:\n" + adv.map((x) => "- " + x).join("\n") + "\n\n" : "";
   if (!d && !adv.length) { $("mail").innerHTML = `<p>אין השבוע לקוחות שצריכים טיפול, ולכן לא יישלח מייל.</p>`; return ""; }
   if (!d) {
     $("mail").innerHTML = `<div><span class="muted">נושא:</span> <b>עדכון מקדמות</b></div><p>שלום,</p>` + advHtml;
-    return `עדכון מקדמות
-
-שלום,
-
-` + advText;
+    return "עדכון מקדמות\n\nשלום,\n\n" + advText;
   }
   const block = (title, list) => list.length ? `<p><b>${title}</b></p><ul>${list.map((x) => `<li>${esc(x.line)}</li>`).join("")}</ul>` : "";
   $("mail").innerHTML = `<div><span class="muted">נושא:</span> <b>${esc(d.subject)}</b></div><p>שלום,</p>`
