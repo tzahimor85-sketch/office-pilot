@@ -111,6 +111,9 @@ textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); bord
       <button class="btn ghost small" id="open-help">עזרה ושאלות נפוצות</button>
     </div>
   </header>
+  <div class="field" id="office-switch-box" hidden style="max-width:420px"><label for="office-switch" class="sub">משרד</label><select id="office-switch"></select></div>
+  <div class="note" id="support-banner" hidden></div>
+  <div class="warn" id="access-banner" hidden></div>
   <div class="card" id="pw-box" hidden style="max-width:420px">
     <div class="field"><label for="pw-new">סיסמה חדשה</label><input id="pw-new" type="password" autocomplete="new-password" minlength="8"></div>
     <div><button class="btn small" id="pw-save">שמור סיסמה</button> <span class="sub" id="pw-msg"></span></div>
@@ -342,6 +345,7 @@ textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); bord
       <details><summary>מה זה "שותפות וירטואלית"?</summary><p>זה מצב של איחוד עוסקים במע"מ. רשות המסים מבקשת לבדוק כל שותף בנפרד, לפי תיק המס שלו.</p></details>
       <details><summary>רוב האישורים פגים בסוף מרץ. האם המערכת תציף אותי בהתראות?</summary><p>לא. האישורים החדשים יוצאים כבר בינואר, ולכן לקוח תקין מתעדכן לבד ויוצא מהרשימה. מי שנשאר ברשימה במרץ הוא לקוח שבאמת לא קיבל אישור. כשרשות המסים מאריכה אישורים בצו, מוסיפים את ההארכה בהגדרות.</p></details>
       <details><summary>למה צריך קוד מהטלפון בכניסה?</summary><p>כדי שרק אתם תוכלו להיכנס, גם אם מישהו יודע את הסיסמה. בכניסה הראשונה מחברים את הטלפון פעם אחת: מתקינים אפליקציית אימות חינמית (Google Authenticator או Microsoft Authenticator) וסורקים את הקוד שמופיע במסך. מאותו רגע, בכל כניסה ממכשיר חדש או אחרי יציאה, מקלידים 6 ספרות מהאפליקציה. במחשב שכבר נכנסתם ממנו, אתם נשארים מחוברים. איבדתם או החלפתם טלפון? מנהל המשרד לוחץ "איפוס הטלפון" ליד השם שלכם, ובכניסה הבאה סורקים קוד חדש.</p></details>
+      <details><summary>מנהל המערכת מבקש לראות את המשרד. מה זה אומר?</summary><p>כדי לעזור לכם, מנהל המערכת יכול לבקש לראות את המשרד יחד איתכם. בלי האישור שלכם הוא לא רואה כלום. כשמגיעה בקשה, מופיעה הודעה בראש המסך, ומנהל המשרד בוחר לכמה זמן לאשר: משעה ועד 8 שעות, או לדחות. בזמן הגישה הוא רואה בדיוק מה שאתם רואים, בצפייה בלבד, בלי אפשרות לשנות נתונים. כל עוד הגישה פתוחה, מופיעה הודעה בראש המסך, ואפשר לסיים אותה מיד בכפתור "סיים את הגישה עכשיו".</p></details>
       <details><summary>איפה נשמרים הנתונים?</summary><p>באתר, הנתונים נשמרים בשרת מאובטח, וכל משתמשי המשרד רואים את אותם נתונים. משרד אחר לא רואה אותם. את 6 הספרות מהשובר ואת מפתחות SUMIT שומרים מוצפנים, והם לא חוזרים למסך אף פעם. בגרסה שנפתחת כקובץ במחשב, הנתונים נשמרים רק בדפדפן.</p></details><details><summary>איך מוסיפים משתמש למשרד?</summary><p>מנהל המשרד נכנס ללשונית "הגדרות ולקוחות", לכרטיס "משתמשים במשרד", וממלא שם משתמש וסיסמה. אחרי היצירה מופיעים פרטי הכניסה, עם כפתורים להעתקה ולשליחה ב-WhatsApp או במייל. בכפתור "סיסמה חדשה" אפשר לקבוע סיסמה חדשה למי ששכח.</p></details>
       <details><summary>ומה עם המקדמות?</summary><p>שירות המקדמות ייכנס ללשונית "מקדמות" במוצר הזה, עם אותה רשימת לקוחות.</p></details>
     </article>
@@ -899,6 +903,7 @@ function loadLocal() {
 }
 const notify = () => listeners.forEach((f) => { try { f(state); } catch {} });
 function save() {
+  if (CLOUD && myRole === "support") { setSync("צפייה בלבד: השינוי לא נשמר."); pullCloud(); return; }
   if (CLOUD) { clearTimeout(saveTimer); saveTimer = setTimeout(pushCloud, 500); setSync("שומר…"); }
   else { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { alertBox("השמירה בדפדפן נכשלה: " + e.message); } }
   notify();
@@ -1316,13 +1321,29 @@ $("mail-save-to").onclick = () => {
   $("mail-to-msg").textContent = list.length ? (state.settings.mailAuto ? "נשמר. המייל יישלח בכל יום ראשון." : "נשמר. השליחה האוטומטית כבויה.") : "נשמר, אבל אין נמענים.";
 };
 // ---------- system owner: separate offices
+let ownerTimer = null;
 async function refreshOwner() {
   const { data: isOwner } = await sb.rpc("op_is_superadmin");
   $("owner-card").hidden = !isOwner;
   if (!isOwner) return;
   try {
     const { offices } = await adminFn({ action: "listOffices" });
-    $("offices-list").innerHTML = offices.map((o) => `<div class="user-row"><b>${esc(o.name)}</b><span class="sub">${o.members} משתמשים · נפתח ${formatDate(o.created.slice(0, 10))}</span></div>`).join("") || "עוד אין משרדים.";
+    const { data: reqs } = await sb.from("op_access_requests").select("office_id, status, expires_at").eq("requested_by", myUserId).in("status", ["pending", "approved"]);
+    const accessFor = (id) => {
+      if (memberships.some((m) => m.office_id === id && m.role !== "support")) return `<span class="sub">המשרד שלכם</span>`;
+      if (memberships.some((m) => m.office_id === id && m.role === "support")) return `<button class="btn small" data-open-office="${id}">פתח לצפייה</button>`;
+      if ((reqs || []).some((r) => r.office_id === id && r.status === "pending")) return `<span class="pill amber">ממתין לאישור המשרד</span>`;
+      return `<button class="btn ghost small" data-ask="${id}">בקש גישה</button>`;
+    };
+    $("offices-list").innerHTML = offices.map((o) => `<div class="user-row"><b>${esc(o.name)}</b><span class="sub">${o.members} משתמשים · נפתח ${formatDate(o.created.slice(0, 10))}</span>${accessFor(o.id)}</div>`).join("") || "עוד אין משרדים.";
+    document.querySelectorAll("[data-ask]").forEach((b) => (b.onclick = async () => {
+      try { await sb.functions.invoke("op-admin", { body: { action: "requestAccess", officeId: b.dataset.ask } }); } catch {}
+      refreshOwner();
+    }));
+    document.querySelectorAll("[data-open-office]").forEach((b) => (b.onclick = () => enterOffice(b.dataset.openOffice)));
+    // while a request waits, check every 20 seconds whether the office approved it
+    clearTimeout(ownerTimer);
+    if ((reqs || []).some((r) => r.status === "pending")) ownerTimer = setTimeout(async () => { await loadMemberships(); refreshOwner(); }, 20000);
   } catch (e) { $("offices-list").textContent = "לא הצלחתי לטעון משרדים: " + e.message; }
 }
 $("o-add").onclick = async () => {
@@ -1438,7 +1459,7 @@ const SITE_URL = "https://tzahimor85-sketch.github.io/office-pilot/";
 async function loadUsers() {
   try {
     const { users } = await adminFn({ action: "listUsers" });
-    $("users-list").innerHTML = users.map((u) => `<div class="user-row"><b>${esc(u.username)}</b><span class="pill ${u.role === "admin" ? "blue" : "gray"}">${u.role === "admin" ? "מנהל" : "משתמש"}</span>${u.banned ? '<span class="pill red">חסום</span>' : ""}<button class="btn ghost small" data-reset="${u.userId}" data-name="${esc(u.username)}">סיסמה חדשה</button><button class="btn ghost small" data-mfa-reset="${u.userId}" data-name="${esc(u.username)}">איפוס הטלפון</button>${u.userId === myUserId ? "" : `<button class="btn danger small" data-remove="${u.userId}" data-name="${esc(u.username)}">מחק משתמש</button>`}</div>`).join("");
+    $("users-list").innerHTML = users.map((u) => `<div class="user-row"><b>${esc(u.username)}</b><span class="pill ${u.role === "admin" ? "blue" : u.role === "support" ? "amber" : "gray"}">${u.role === "admin" ? "מנהל" : u.role === "support" ? "צפייה זמנית" : "משתמש"}</span>${u.banned ? '<span class="pill red">חסום</span>' : ""}<button class="btn ghost small" data-reset="${u.userId}" data-name="${esc(u.username)}">סיסמה חדשה</button><button class="btn ghost small" data-mfa-reset="${u.userId}" data-name="${esc(u.username)}">איפוס הטלפון</button>${u.userId === myUserId ? "" : `<button class="btn danger small" data-remove="${u.userId}" data-name="${esc(u.username)}">מחק משתמש</button>`}</div>`).join("");
     document.querySelectorAll("[data-remove]").forEach((b) => (b.onclick = () => {
       $("u-result").innerHTML = `<div class="warn">למחוק את המשתמש <b>${esc(b.dataset.name)}</b>? הוא לא יוכל להיכנס יותר, ושם המשתמש יתפנה. הנתונים של המשרד לא נמחקים. <button class="btn danger small" id="rm-yes">כן, למחוק</button> <button class="btn ghost small" id="rm-no">ביטול</button></div>`;
       $("rm-no").onclick = () => ($("u-result").innerHTML = "");
@@ -1537,30 +1558,83 @@ $("auto-run").onclick = async () => {
 };
 
 // ---------- boot
-async function enterOffice() {
-  const { data: m, error } = await sb.from("op_members").select("office_id, role, op_offices(name)").limit(1).maybeSingle();
-  if (error || !m) {
-    $("login-msg").textContent = error ? "שגיאה בטעינה: " + error.message : "המשתמש הזה עוד לא שויך למשרד. פנו לצחי.";
-    await sb.auth.signOut(); return;
+// A user can belong to several offices: their own, plus offices that approved a temporary support visit.
+let memberships = [], supportTimer = null;
+const OFFICE_PICK = "officePilot.office";
+async function loadMemberships() {
+  const { data, error } = await sb.from("op_members").select("office_id, role, expires_at, op_offices(name)");
+  if (error) throw error;
+  const now = Date.now();
+  memberships = (data || []).filter((m) => (!m.expires_at || Date.parse(m.expires_at) > now) && m.op_offices);
+  $("office-switch").innerHTML = memberships.map((m) => `<option value="${m.office_id}">${esc(m.op_offices.name)}${m.role === "support" ? " (צפייה זמנית)" : ""}</option>`).join("");
+  $("office-switch-box").hidden = memberships.length < 2;
+}
+async function enterOffice(pick) {
+  try { await loadMemberships(); } catch (e) { $("login-msg").textContent = "שגיאה בטעינה: " + e.message; return; }
+  if (!memberships.length) {
+    $("login-msg").textContent = "המשתמש הזה עוד לא שויך למשרד. פנו למנהל המשרד.";
+    $("login").hidden = false; await sb.auth.signOut(); return;
   }
+  let saved = null; try { saved = localStorage.getItem(OFFICE_PICK); } catch {}
+  const m = memberships.find((x) => x.office_id === pick) || memberships.find((x) => x.office_id === saved) || memberships.find((x) => x.role !== "support") || memberships[0];
+  try { localStorage.setItem(OFFICE_PICK, m.office_id); } catch {}
+  $("office-switch").value = m.office_id;
   officeId = m.office_id;
   myRole = m.role;
   myUserId = (await sb.auth.getUser()).data.user?.id ?? null;
   document.querySelectorAll(".cloud-only").forEach((e) => (e.hidden = false));
   document.querySelectorAll(".local-only").forEach((e) => (e.hidden = true));
   document.querySelectorAll(".admin-only").forEach((e) => (e.hidden = myRole !== "admin"));
+  mailEdited = false;
   await pullCloud();
   if (myRole === "admin") loadUsers();
   refreshTaxStatus();
   refreshMailbox();
   refreshOwner();
   refreshRuns();
+  refreshAccess();
   if (!state.office.name && m.op_offices) { state.office.name = m.op_offices.name; }
+  // support visit: read-only, refreshed every 30 seconds so both sides see the same thing
+  clearInterval(supportTimer);
+  $("support-banner").hidden = myRole !== "support";
+  if (myRole === "support") {
+    const until = new Date(m.expires_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+    $("support-banner").innerHTML = `צפייה במשרד <b>${esc(m.op_offices.name)}</b> באישור המשרד, עד ${until}. צפייה בלבד: אי אפשר לשנות כאן נתונים.`;
+    supportTimer = setInterval(async () => {
+      if (Date.parse(m.expires_at) <= Date.now()) { clearInterval(supportTimer); await enterOffice(); return; }
+      await pullCloud();
+    }, 30000);
+  }
   $("login").hidden = true;
   $("user-line").hidden = false;
-  $("welcome").hidden = seen;
+  $("welcome").hidden = seen || myRole === "support";
   renderAll(); notify();
-  setSync("נשמר");
+  setSync(myRole === "support" ? "צפייה בלבד" : "נשמר");
+}
+$("office-switch").onchange = (e) => enterOffice(e.target.value);
+
+// Office admins see access requests from the system owner, approve them for a few hours, and can end them.
+let accessTimer = null;
+async function refreshAccess() {
+  clearTimeout(accessTimer);
+  if (myRole !== "admin") { $("access-banner").hidden = true; return; }
+  const { data } = await sb.from("op_access_requests").select("id, requester_name, status, requested_at, expires_at").eq("office_id", officeId).in("status", ["pending", "approved"]).order("requested_at", { ascending: false });
+  const now = Date.now();
+  const rows = (data || []).filter((r) => r.status === "pending" || (r.expires_at && Date.parse(r.expires_at) > now));
+  $("access-banner").hidden = !rows.length;
+  $("access-banner").innerHTML = rows.map((r) => r.status === "pending"
+    ? `<div><b>${esc(r.requester_name)}</b> (מנהל המערכת) מבקש לראות את המשרד יחד איתכם, בצפייה בלבד, כדי לעזור. לאשר?
+        <select id="acc-h-${r.id}"><option value="1">לשעה</option><option value="2" selected>לשעתיים</option><option value="4">ל-4 שעות</option><option value="8">ל-8 שעות</option></select>
+        <button class="btn small" data-acc-ok="${r.id}">אשר</button> <button class="btn ghost small" data-acc-no="${r.id}">דחה</button></div>`
+    : `<div><b>${esc(r.requester_name)}</b> רואה את המשרד עכשיו, בצפייה בלבד, עד ${new Date(r.expires_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}. <button class="btn danger small" data-acc-end="${r.id}">סיים את הגישה עכשיו</button></div>`).join("");
+  const act = async (action, id, extra = {}) => {
+    try { await adminFn({ action, requestId: Number(id), ...extra }); } catch (e) { alertBox(e.message); }
+    refreshAccess(); loadUsers();
+  };
+  document.querySelectorAll("[data-acc-ok]").forEach((b) => (b.onclick = () => act("approveAccess", b.dataset.accOk, { hours: Number($("acc-h-" + b.dataset.accOk).value) })));
+  document.querySelectorAll("[data-acc-no]").forEach((b) => (b.onclick = () => act("denyAccess", b.dataset.accNo)));
+  document.querySelectorAll("[data-acc-end]").forEach((b) => (b.onclick = () => act("endAccess", b.dataset.accEnd)));
+  accessTimer = setTimeout(refreshAccess, 60000);
 }
 if (CLOUD) {
   sb = window.supabase.createClient(window.OP_CONFIG.url, window.OP_CONFIG.anon, { auth: { persistSession: true } });
