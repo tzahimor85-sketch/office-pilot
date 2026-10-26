@@ -1127,13 +1127,30 @@ function renderMail() {
     return { client: c, status: statusOf(c), end, booksEnd };
   });
   const d = buildDigest(items);
-  if (!d) { $("mail").innerHTML = `<p>אין השבוע לקוחות שצריכים טיפול, ולכן לא יישלח מייל.</p>`; return ""; }
+  // advance-payments lines come from advance.js through OfficePilot.advanceDigest (strings), if it provides them
+  let adv = [];
+  try { adv = (window.OfficePilot.advanceDigest?.() || []).filter(Boolean); } catch {}
+  const advHtml = adv.length ? `<p><b>מקדמות:</b></p><ul>${adv.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const advText = adv.length ? `מקדמות:
+${adv.map((x) => "- " + x).join("
+")}
+
+` : "";
+  if (!d && !adv.length) { $("mail").innerHTML = `<p>אין השבוע לקוחות שצריכים טיפול, ולכן לא יישלח מייל.</p>`; return ""; }
+  if (!d) {
+    $("mail").innerHTML = `<div><span class="muted">נושא:</span> <b>עדכון מקדמות</b></div><p>שלום,</p>` + advHtml;
+    return `עדכון מקדמות
+
+שלום,
+
+` + advText;
+  }
   const block = (title, list) => list.length ? `<p><b>${title}</b></p><ul>${list.map((x) => `<li>${esc(x.line)}</li>`).join("")}</ul>` : "";
   $("mail").innerHTML = `<div><span class="muted">נושא:</span> <b>${esc(d.subject)}</b></div><p>שלום,</p>`
-    + block("דחוף:", d.urgent) + block("פג בחודש הקרוב:", d.soon) + block("בטיפול:", d.inProgress)
+    + block("דחוף:", d.urgent) + block("פג בחודש הקרוב:", d.soon) + block("בטיפול:", d.inProgress) + advHtml
     + `<p class="sub">המייל נשלח שוב בכל שבוע, עד שכל לקוח ברשימה מטופל.</p>`;
   const text = (title, list) => list.length ? `${title}\n${list.map((x) => "- " + x.line).join("\n")}\n\n` : "";
-  return `${d.subject}\n\nשלום,\n\n` + text("דחוף:", d.urgent) + text("פג בחודש הקרוב:", d.soon) + text("בטיפול:", d.inProgress);
+  return `${d.subject}\n\nשלום,\n\n` + text("דחוף:", d.urgent) + text("פג בחודש הקרוב:", d.soon) + text("בטיפול:", d.inProgress) + advText;
 }
 $("copy-mail").onclick = async () => {
   try { await navigator.clipboard.writeText(renderMail()); $("copy-ok").textContent = "הועתק"; }
@@ -1738,7 +1755,46 @@ function advStore() {
   const a = st.advance;
   a.settings = a.settings || { forecastYear: advYears.includes(new Date().getFullYear()) ? new Date().getFullYear() : advYears[0], vatIncluded: true, vatRate: 18 };
   a.clients = a.clients || {};
+  // מועדי הבדיקה: ברירת המחדל היא 20/1, אחרי שנתוני השנה שהסתיימה סגורים, ובדיקת אמצע שנה ב-1/7. ניתנים לשינוי
+  a.settings.schedule = a.settings.schedule || [
+    { key: "annual", label: "בדיקה שנתית", day: 20, month: 1 },
+    { key: "midyear", label: "בדיקת אמצע שנה", day: 1, month: 7 },
+  ];
+  a.runs = a.runs || {};
   return a;
+}
+
+// ---------- לוח הבדיקות
+const advIso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const advIl = (iso) => iso.split("-").reverse().join("/");
+function advScheduleStatus(item, today = new Date()) {
+  const last = advStore().runs[item.key] || "";
+  const y = today.getFullYear();
+  const thisYear = advIso(new Date(y, item.month - 1, item.day));
+  const due = advIso(today) >= thisYear && last < thisYear;
+  const next = due ? thisYear : advIso(today) < thisYear ? thisYear : advIso(new Date(y + 1, item.month - 1, item.day));
+  return { due, next, last };
+}
+function advScheduleHtml() {
+  const a = advStore();
+  const rows = a.settings.schedule.map((it, i) => {
+    const st = advScheduleStatus(it);
+    const pill = st.due ? `<span class="pill amber">הגיע המועד</span>` : `<span class="pill gray">מתוכנן</span>`;
+    return `<tr><td>${advEsc(it.label)}</td>
+      <td><input class="ltr" style="width:80px" data-adv-sched="${i}" value="${String(it.day).padStart(2, "0")}/${String(it.month).padStart(2, "0")}" aria-label="מועד ${advEsc(it.label)}"></td>
+      <td>${pill} ${st.due ? "" : advIl(st.next)}</td><td class="sub">${st.last ? "בוצע " + advIl(st.last) : "עוד לא בוצע"}</td>
+      <td>${st.due ? `<button class="btn small" data-adv-run="${advEsc(it.key)}">להריץ עכשיו</button>` : `<button class="btn small ghost" data-adv-run="${advEsc(it.key)}">להריץ</button>`}</td></tr>`;
+  }).join("");
+  return `<h3>לוח הבדיקות</h3><p class="sub">במועד הבדיקה המערכת מבקשת להריץ: שליפה מ-SUMIT לכל הלקוחות המחוברים וחישוב מחדש. המועד בפורמט יום/חודש, וניתן לשינוי.</p>
+    <div class="table-wrap"><table style="min-width:0"><thead><tr><th>בדיקה</th><th>מועד</th><th>הבאה</th><th>אחרונה</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function advDueBanner() {
+  const due = advStore().settings.schedule.filter((it) => advScheduleStatus(it).due);
+  if (!due.length) return "";
+  const y = new Date().getFullYear();
+  return due.map((it) => `<div class="warn" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <span><b>הגיע המועד: ${advEsc(it.label)}.</b> ${it.key === "annual" ? `נתוני ${y - 1} סגורים, ואפשר לחשב את המקדמות ל-${y}.` : `אפשר לבדוק את המקדמות מול הנתונים בפועל מתחילת ${y}.`}</span>
+    <button class="btn small" data-adv-run="${advEsc(it.key)}">להריץ עכשיו</button></div>`).join("");
 }
 function advClientData(id) {
   const a = advStore();
@@ -1891,6 +1947,8 @@ function advRender() {
       <td class="num">${gap}</td></tr>`;
   }).join("") || `<tr class="empty"><td colspan="8">אין לקוחות שמתאימים לחיפוש ולסינון.</td></tr>`;
   panel.querySelector("#adv-year").value = String(a.settings.forecastYear);
+  panel.querySelector("#adv-schedule").innerHTML = advScheduleHtml();
+  panel.querySelector("#adv-due").innerHTML = advDueBanner();
   panel.querySelector("#adv-vat").checked = !!a.settings.vatIncluded;
 }
 
@@ -1905,7 +1963,9 @@ function advShell() {
       <div class="field"><label for="adv-year">שנת התחזית</label><select id="adv-year">${advYears.map((y) => `<option value="${y}">${y} (בסיס ${y - 1})</option>`).join("")}</select></div>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="adv-vat"> הסכומים ב-SUMIT כוללים מע"מ (מחלקים ב-1.18)</label>
     </div>
+    <div id="adv-schedule"></div>
   </div>
+  <div id="adv-due"></div>
   <div class="summary" id="adv-summary"></div>
   <div class="toolbar">
     <input id="adv-q" placeholder="חיפוש לפי שם או ת&quot;ז/ח&quot;פ" style="flex:1;min-width:220px">
@@ -2008,6 +2068,22 @@ function advModal(id) {
 }
 const ADV_SOURCE = { sumit: "SUMIT", form: "הוזן", "tax-office": "פקיד השומה", "tax-table": "טבלת מס", calc: "חישוב", default: "ברירת מחדל" };
 
+async function advFetchAll() {
+  const msg = document.getElementById("adv-msg");
+  await advRefreshConnected();
+  const list = advOP.getClients().filter((cl) => advConnected.has(cl.clientId));
+  if (!list.length) { msg.innerHTML = `<div class="warn">אין לקוחות מחוברים ל-SUMIT. מחברים לקוח מתוך החלון שלו.</div>`; return false; }
+  let ok = 0; const bad = [];
+  for (const cl of list) {
+    msg.innerHTML = `<div class="note">שולף ${ok + bad.length + 1} מתוך ${list.length}…</div>`;
+    try { await advFetchClient(cl.clientId); ok++; }
+    catch (err) { bad.push(`${cl.name}: ${advErrText(err)}`); advClientData(cl.clientId).sumit = { ...(advClientData(cl.clientId).sumit || {}), error: advErrText(err) }; }
+  }
+  advOP.save();
+  document.getElementById("adv-msg").innerHTML = `<div class="${bad.length ? "warn" : "note"}">נשלפו ${ok} לקוחות.${bad.length ? " נכשלו: " + advEsc(bad.join("; ")) : ""}</div>`;
+  return true;
+}
+
 function advWire() {
   const panel = advOP.panel();
   panel.addEventListener("click", async (e) => {
@@ -2025,25 +2101,28 @@ function advWire() {
       link.href = URL.createObjectURL(blob); link.download = `מקדמות-${advStore().settings.forecastYear}.csv`;
       document.body.appendChild(link); link.click(); link.remove();
     }
-    if (t.id === "adv-fetch-all") {
-      const msg = document.getElementById("adv-msg");
-      await advRefreshConnected();
-      const list = advOP.getClients().filter((cl) => advConnected.has(cl.clientId));
-      if (!list.length) { msg.innerHTML = `<div class="warn">אין לקוחות מחוברים ל-SUMIT. מחברים לקוח מתוך החלון שלו.</div>`; return; }
-      let ok = 0; const bad = [];
-      for (const cl of list) {
-        msg.innerHTML = `<div class="note">שולף ${ok + bad.length + 1} מתוך ${list.length}…</div>`;
-        try { await advFetchClient(cl.clientId); ok++; } catch (err) { bad.push(`${cl.name}: ${advErrText(err)}`); advClientData(cl.clientId).sumit = { ...(advClientData(cl.clientId).sumit || {}), error: advErrText(err) }; }
-      }
-      advOP.save();
-      msg.innerHTML = `<div class="${bad.length ? "warn" : "note"}">נשלפו ${ok} לקוחות.${bad.length ? " נכשלו: " + advEsc(bad.join("; ")) : ""}</div>`;
+    if (t.dataset?.advRun) {
+      const key = t.dataset.advRun;
+      const y = new Date().getFullYear();
+      if (advYears.includes(y)) advStore().settings.forecastYear = y;
+      else { document.getElementById("adv-msg").innerHTML = `<div class="warn">טבלת המס של ${y} עוד לא נוספה למערכת. החישוב ייעשה לפי ${advStore().settings.forecastYear} עד שתתווסף.</div>`; }
+      const done = await advFetchAll();
+      if (done) { advStore().runs[key] = advIso(new Date()); advOP.save(); }
+      return;
     }
+    if (t.id === "adv-fetch-all") { await advFetchAll(); return; }
   });
   panel.addEventListener("change", (e) => {
     const t = e.target;
     if (t.dataset?.advField) { advClientData(t.dataset.id)[t.dataset.advField] = t.value; advOP.save(); }
     if (t.id === "adv-year") { advStore().settings.forecastYear = Number(t.value); advOP.save(); }
     if (t.id === "adv-vat") { advStore().settings.vatIncluded = t.checked; advOP.save(); }
+    if (t.dataset?.advSched !== undefined) {
+      const m = t.value.trim().match(/^(\d{1,2})\s*[\/.]\s*(\d{1,2})$/);
+      const it = advStore().settings.schedule[Number(t.dataset.advSched)];
+      if (m && +m[1] >= 1 && +m[1] <= 31 && +m[2] >= 1 && +m[2] <= 12) { it.day = +m[1]; it.month = +m[2]; advOP.save(); }
+      else { t.value = `${String(it.day).padStart(2, "0")}/${String(it.month).padStart(2, "0")}`; }
+    }
   });
   panel.addEventListener("input", (e) => { if (e.target.id === "adv-q") { advQuery = e.target.value; advRender(); } });
   document.addEventListener("click", (e) => {
