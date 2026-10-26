@@ -254,6 +254,17 @@ textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); bord
         </div>
         <p class="sub local-only">בגרסה שבמחשב את 6 הספרות מהשובר לא שומרים. מקלידים אותן רק באתר רשות המסים.</p>
       </article>
+      <article class="card" id="owner-card" hidden>
+        <h2>משרדים (מנהל המערכת)</h2>
+        <p class="sub">כל משרד נפרד לגמרי: הוא רואה רק את הלקוחות שלו. כשפותחים משרד חדש, אתם לא נכנסים אליו, ולכן גם לא רואים את הלקוחות שלו.</p>
+        <div id="offices-list" class="sub">טוען…</div>
+        <h3>פתיחת משרד חדש</h3>
+        <div class="field"><label for="o-name">שם המשרד</label><input id="o-name" placeholder="למשל: משרד רו&quot;ח לוי"></div>
+        <div class="field"><label for="o-user">שם משתמש למנהל המשרד</label><input id="o-user" placeholder="למשל: דני לוי"></div>
+        <div class="field"><label for="o-pw">סיסמה ראשונית</label><input id="o-pw" type="text" autocomplete="off" class="ltr"></div>
+        <div><button class="btn small" id="o-add">פתח משרד</button></div>
+        <div id="o-result"></div>
+      </article>
       <article class="card cloud-only admin-only" hidden>
         <h2>משתמשים במשרד</h2>
         <div id="users-list" class="sub">טוען…</div>
@@ -1304,6 +1315,29 @@ $("mail-save-to").onclick = () => {
   state.settings.mailTo = list; state.settings.mailAuto = $("mail-auto").checked; save();
   $("mail-to-msg").textContent = list.length ? (state.settings.mailAuto ? "נשמר. המייל יישלח בכל יום ראשון." : "נשמר. השליחה האוטומטית כבויה.") : "נשמר, אבל אין נמענים.";
 };
+// ---------- system owner: separate offices
+async function refreshOwner() {
+  const { data: isOwner } = await sb.rpc("op_is_superadmin");
+  $("owner-card").hidden = !isOwner;
+  if (!isOwner) return;
+  try {
+    const { offices } = await adminFn({ action: "listOffices" });
+    $("offices-list").innerHTML = offices.map((o) => `<div class="user-row"><b>${esc(o.name)}</b><span class="sub">${o.members} משתמשים · נפתח ${formatDate(o.created.slice(0, 10))}</span></div>`).join("") || "עוד אין משרדים.";
+  } catch (e) { $("offices-list").textContent = "לא הצלחתי לטעון משרדים: " + e.message; }
+}
+$("o-add").onclick = async () => {
+  const name = $("o-name").value.trim(), username = $("o-user").value.trim().replace(/\s+/g, " "), pw = $("o-pw").value;
+  if (name.length < 2 || username.length < 2) { $("o-result").innerHTML = `<p class="warn">צריך שם משרד ושם משתמש.</p>`; return; }
+  if (pw.length < 6) { $("o-result").innerHTML = `<p class="warn">הסיסמה צריכה לפחות 6 תווים.</p>`; return; }
+  $("o-add").disabled = true;
+  try {
+    await adminFn({ action: "createOffice", name, username, password: stretch(pw) });
+    showCred(username, pw, `המשרד "${name}" נפתח. אלה פרטי הכניסה של המנהל שלו:`, "o-result");
+    $("o-name").value = ""; $("o-user").value = ""; $("o-pw").value = ""; refreshOwner();
+  } catch (e) { $("o-result").innerHTML = `<p class="warn">${esc(e.message)}</p>`; }
+  $("o-add").disabled = false;
+};
+
 async function refreshMailbox() {
   const { data } = await sb.rpc("op_mail_status", { o: officeId });
   const row = data && data[0];
@@ -1412,13 +1446,14 @@ async function loadUsers() {
     }));
   } catch (e) { $("users-list").textContent = "לא הצלחתי לטעון משתמשים: " + e.message; }
 }
-function showCred(username, pw, note) {
+function showCred(username, pw, note, target = "u-result") {
   const text = `כניסה למערכת מעקב אישורים ומקדמות
 כתובת: ${SITE_URL}
 שם משתמש: ${username}
 סיסמה: ${pw}
-אחרי הכניסה הראשונה כדאי להחליף סיסמה בכפתור "שינוי סיסמה".`;
-  $("u-result").innerHTML = `<div class="cred"><b>${esc(note)}</b><div>כתובת: <span class="ltr">${SITE_URL}</span></div><div>שם משתמש: <b>${esc(username)}</b></div><div>סיסמה: <b class="ltr">${esc(pw)}</b></div>
+בכניסה הראשונה מחברים את הטלפון: מתקינים אפליקציית אימות חינמית (Google Authenticator או Microsoft Authenticator) וסורקים את הקוד שמופיע במסך. ההוראות מופיעות שם.
+אחרי הכניסה כדאי להחליף סיסמה בכפתור "שינוי סיסמה".`;
+  $(target).innerHTML = `<div class="cred"><b>${esc(note)}</b><div>כתובת: <span class="ltr">${SITE_URL}</span></div><div>שם משתמש: <b>${esc(username)}</b></div><div>סיסמה: <b class="ltr">${esc(pw)}</b></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" id="cred-copy">העתק</button>
     <a class="btn ghost small" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(text)}">שלח ב-WhatsApp</a>
     <a class="btn ghost small" href="mailto:?subject=${encodeURIComponent("פרטי כניסה למערכת")}&body=${encodeURIComponent(text)}">שלח במייל</a></div>
@@ -1509,6 +1544,7 @@ async function enterOffice() {
   if (myRole === "admin") loadUsers();
   refreshTaxStatus();
   refreshMailbox();
+  refreshOwner();
   refreshRuns();
   if (!state.office.name && m.op_offices) { state.office.name = m.op_offices.name; }
   $("login").hidden = true;
