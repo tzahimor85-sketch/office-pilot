@@ -202,6 +202,14 @@ textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); bord
         <span class="sub" id="copy-ok"></span>
       </div>
     </div>
+    <article class="card cloud-only" hidden>
+      <h2>שליחה אוטומטית</h2>
+      <p class="sub">המייל נשלח רק לאנשי המשרד. ללקוחות לא נשלח שום מייל.</p>
+      <div class="field"><label for="mail-to">נמענים במשרד (כמה כתובות, מופרדות בפסיק)</label><input id="mail-to" class="ltr" placeholder="office@example.co.il, rina@example.co.il"></div>
+      <label class="sub"><input type="checkbox" id="mail-auto"> לשלוח אוטומטית בכל יום ראשון בבוקר, עם קובץ החישוב של המקדמות</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" id="mail-save-to">שמור</button><button class="btn ghost small" id="mail-test">שלח עכשיו מייל בדיקה לנמענים</button></div>
+      <div class="sub" id="mail-to-msg"></div>
+    </article>
     <details class="card" id="mail-template-box">
       <summary><b>תבנית המייל: פתיחה, סגירה וחתימה</b></summary>
       <p class="sub">השינויים כאן נשמרים לכל המיילים הבאים. אפשר להשתמש ב-{תאריך} (תאריך העדכון האחרון מרשות המסים) וב-{קישור} (הקישור לאתר).</p>
@@ -735,6 +743,81 @@ function buildDigest(items                                                      
   };
 }
 
+// ---- weekly office email, shared by the page (bundled) and the runner (run.mjs loads it with the engine functions).
+// Plain declarations only: it relies on computeStatus, buildDigest, effectiveEnd and formatDate being in scope.
+// Rule (Tzahi, 26/10/2026): this email goes to the office only, never to the office's clients.
+
+const MAIL_DEFAULT = {
+  opening: "זה העדכון השבועי של אישורי ניכוי מס במקור וניהול ספרים של לקוחות המשרד. הנתונים מרשות המסים עודכנו לאחרונה ב-{תאריך}.",
+  closing: "המייל יישלח שוב בשבוע הבא, עד שכל הלקוחות ברשימה יטופלו. לרשימה המלאה ולסימון טיפול: {קישור}",
+  signature: "מערכת מעקב אישורים ומקדמות",
+};
+const MAIL_ACTION = {
+  expired: "מה לעשות: להגיש לרשות המסים בקשה לחידוש, ולבדוק אם יש ליקויים בתיק (דוח שלא הוגש, חוב).",
+  no_certificate: "מה לעשות: לבדוק בתיק מה חוסם את האישור. בדרך כלל זה דוח שלא הוגש או חוב, ומטפלים בזה מול פקיד השומה.",
+  renew_soon: "מה לעשות: לוודא שאין ליקויים בתיק. אם אין, רשות המסים מחדשת את האישור לבד. אם יש, לטפל בהם לפני התאריך.",
+  done_waiting: "מה לעשות: סומן טופל, אבל האישור החדש עוד לא מופיע ברשות המסים. כדאי לבדוק מול פקיד השומה.",
+  in_progress: "בטיפול המשרד.",
+};
+const MAIL_EXAMPLE_ITEMS = () => [
+  { client: { clientId: "x1", name: "מאפיית גולן בע\"מ" }, status: { key: "expired", which: "withholding", daysLeft: -11, urgent: true }, end: "2026-10-15", booksEnd: "2027-03-31" },
+  { client: { clientId: "x2", name: "בר-טל הובלות בע\"מ" }, status: { key: "no_certificate", which: null, daysLeft: null, urgent: true }, end: null, booksEnd: null },
+  { client: { clientId: "x3", name: "שירן הנדסה בע\"מ" }, status: { key: "renew_soon", which: "both", daysLeft: 15, urgent: false }, end: "2026-11-10", booksEnd: "2026-11-10" },
+  { client: { clientId: "x4", name: "סטודיו נועה כהן" }, status: { key: "renew_soon", which: "books", daysLeft: 20, urgent: false }, end: "2027-03-31", booksEnd: "2026-11-15" },
+  { client: { clientId: "x5", name: "גל-אור מערכות מיזוג" }, status: { key: "in_progress", which: "withholding", daysLeft: 29, urgent: false }, end: "2026-11-24", booksEnd: "2026-11-24" },
+];
+
+function officeRecord(st, c) {
+  const r = (st.results || {})[c.clientId];
+  return r && r.fetch.outcome === "found" ? r.fetch.record : null;
+}
+
+function officeStatus(st, c, today) {
+  const r = (st.results || {})[c.clientId];
+  const mark = (st.marks || {})[c.clientId] || null;
+  const s = st.settings || {};
+  return computeStatus({
+    fetch: r ? r.fetch : null,
+    previousWithholdingEnd: mark ? mark.prevEnd : null,
+    mark: mark ? { state: mark.state, at: mark.at } : null,
+    checkPending: false, // a "done" mark waits as done_waiting, so reminders continue
+    clientToldAt: (st.told || {})[c.clientId] || null,
+    today,
+    alertDays: Number(s.alertDays ?? 30),
+    alertOn: s.alertOn ?? "both",
+    extensions: s.extensions ?? [],
+  });
+}
+
+// opts: { today, siteUrl, advLines: string[] }. Returns { example, subject, text }; text is "" when there is nothing to send.
+function officeMail(st, opts) {
+  const clients = st.clients || [];
+  const example = clients.length === 0;
+  const ext = (st.settings && st.settings.extensions) || [];
+  const items = example ? MAIL_EXAMPLE_ITEMS() : clients.map((c) => {
+    const rec = officeRecord(st, c);
+    return {
+      client: c,
+      status: officeStatus(st, c, opts.today),
+      end: rec ? effectiveEnd(rec.withholding.end ?? "", ext) || null : null,
+      booksEnd: rec ? effectiveEnd(rec.books.end ?? "", ext) || null : null,
+    };
+  });
+  const d = buildDigest(items);
+  const adv = example ? [] : (opts.advLines || []).filter(Boolean);
+  if (!d && !adv.length) return { example, subject: "", text: "" };
+  const t = { ...MAIL_DEFAULT, ...((st.settings && st.settings.mail) || {}) };
+  const fill = (s) => s.split("{תאריך}").join(st.lastRun ? formatDate(st.lastRun.at) : "—").split("{קישור}").join(opts.siteUrl || "");
+  const part = (title, list) => !list.length ? "" : title + "\n\n" + list.map((x) => ("• " + x.line + "\n  " + (MAIL_ACTION[x.status.key] || "")).trimEnd()).join("\n\n") + "\n\n";
+  const counts = d ? [d.urgent.length && `${d.urgent.length} דחופים`, d.soon.length && `${d.soon.length} שיפוגו בחודש הקרוב`, d.inProgress.length && `${d.inProgress.length} בטיפול`].filter(Boolean).join(", ") : "";
+  const text = "שלום,\n\n" + fill(t.opening) + "\n\n"
+    + (counts ? "השבוע: " + counts + ".\n\n" : "")
+    + (d ? part("דחוף, לטפל השבוע:", d.urgent) + part("יפוג בחודש הקרוב:", d.soon) + part("בטיפול:", d.inProgress) : "")
+    + (adv.length ? "מקדמות:\n\n" + adv.map((x) => "• " + x).join("\n") + "\n\n" : "")
+    + fill(t.closing) + "\n\n" + t.signature;
+  return { example, subject: d ? d.subject : "עדכון מקדמות", text };
+}
+
 // ---- pilot app (plain JS; the engine functions above are in the same scope)
 const STORE_KEY = "officePilot.v1";
 const $ = (id) => document.getElementById(id);
@@ -928,22 +1011,8 @@ function importClients(text) {
 }
 
 // ---------- status per client
-function statusOf(c) {
-  const r = state.results[c.clientId];
-  const mark = state.marks[c.clientId] || null;
-  return computeStatus({
-    fetch: r ? r.fetch : null,
-    previousWithholdingEnd: mark ? mark.prevEnd : null,
-    mark: mark ? { state: mark.state, at: mark.at } : null,
-    checkPending: false, // in the semi-automatic pilot a "done" mark waits as done_waiting, so reminders continue
-    clientToldAt: state.told[c.clientId] || null,
-    today: todayIso(),
-    alertDays: Number(state.settings.alertDays),
-    alertOn: state.settings.alertOn,
-    extensions: state.settings.extensions,
-  });
-}
-const recordOf = (c) => { const r = state.results[c.clientId]; return r && r.fetch.outcome === "found" ? r.fetch.record : null; };
+const statusOf = (c) => officeStatus(state, c, todayIso()); // shared with the weekly email (mail-core.js)
+const recordOf = (c) => officeRecord(state, c);
 const rateText = (r) => !r || r.kind === "none" ? "אין נתונים" : r.kind === "exempt" ? "פטור מלא" : `${r.percent}%`;
 const dateText = (d) => (d ? formatDate(d) : "—");
 const daysText = (n) => n === null || n === undefined ? "" : n < 0 ? `לפני ${-n} יום` : n === 0 ? "היום" : `בעוד ${n} יום`;
@@ -1141,51 +1210,12 @@ $("load-results").onclick = async () => {
 // ---------- weekly email
 // The email explains each problem and what to do about it. Opening, closing and signature are an editable
 // template (state.settings.mail); the generated text can also be edited by hand before copying.
-const MAIL_DEFAULT = {
-  opening: "זה העדכון השבועי של אישורי ניכוי מס במקור וניהול ספרים של לקוחות המשרד. הנתונים מרשות המסים עודכנו לאחרונה ב-{תאריך}.",
-  closing: "המייל יישלח שוב בשבוע הבא, עד שכל הלקוחות ברשימה יטופלו. לרשימה המלאה ולסימון טיפול: {קישור}",
-  signature: "מערכת מעקב אישורים ומקדמות",
-};
-const mailTemplate = () => ({ ...MAIL_DEFAULT, ...(state.settings.mail || {}) });
-const ACTION = {
-  expired: "מה לעשות: להגיש לרשות המסים בקשה לחידוש, ולבדוק אם יש ליקויים בתיק (דוח שלא הוגש, חוב).",
-  no_certificate: "מה לעשות: לבדוק בתיק מה חוסם את האישור. בדרך כלל זה דוח שלא הוגש או חוב, ומטפלים בזה מול פקיד השומה.",
-  renew_soon: "מה לעשות: לוודא שאין ליקויים בתיק. אם אין, רשות המסים מחדשת את האישור לבד. אם יש, לטפל בהם לפני התאריך.",
-  done_waiting: "מה לעשות: סומן טופל, אבל האישור החדש עוד לא מופיע ברשות המסים. כדאי לבדוק מול פקיד השומה.",
-  in_progress: "בטיפול המשרד.",
-};
-const EXAMPLE_ITEMS = () => [
-  { client: { clientId: "x1", name: "מאפיית גולן בע\"מ" }, status: { key: "expired", which: "withholding", daysLeft: -11, urgent: true }, end: "2026-10-15", booksEnd: "2027-03-31" },
-  { client: { clientId: "x2", name: "בר-טל הובלות בע\"מ" }, status: { key: "no_certificate", which: null, daysLeft: null, urgent: true }, end: null, booksEnd: null },
-  { client: { clientId: "x3", name: "שירן הנדסה בע\"מ" }, status: { key: "renew_soon", which: "both", daysLeft: 15, urgent: false }, end: "2026-11-10", booksEnd: "2026-11-10" },
-  { client: { clientId: "x4", name: "סטודיו נועה כהן" }, status: { key: "renew_soon", which: "books", daysLeft: 20, urgent: false }, end: "2027-03-31", booksEnd: "2026-11-15" },
-  { client: { clientId: "x5", name: "גל-אור מערכות מיזוג" }, status: { key: "in_progress", which: "withholding", daysLeft: 29, urgent: false }, end: "2026-11-24", booksEnd: "2026-11-24" },
-];
+const mailTemplate = () => ({ ...MAIL_DEFAULT, ...(state.settings.mail || {}) }); // MAIL_DEFAULT is in mail-core.js
 let mailEdited = false;
 function buildMail() {
-  const example = state.clients.length === 0;
-  const items = example ? EXAMPLE_ITEMS() : state.clients.map((c) => {
-    const rec = recordOf(c);
-    const end = rec ? effectiveEnd(rec.withholding.end ?? "", state.settings.extensions) || null : null;
-    const booksEnd = rec ? effectiveEnd(rec.books.end ?? "", state.settings.extensions) || null : null;
-    return { client: c, status: statusOf(c), end, booksEnd };
-  });
-  const d = buildDigest(items);
-  // advance-payments lines come from advance.js through OfficePilot.advanceDigest (strings)
   let adv = [];
-  if (!example) { try { adv = (window.OfficePilot.advanceDigest?.() || []).filter(Boolean); } catch {} }
-  const t = mailTemplate();
-  const fill = (s) => s.replaceAll("{תאריך}", state.lastRun ? formatDate(state.lastRun.at) : "—").replaceAll("{קישור}", CLOUD ? SITE_URL : "האתר של המשרד");
-  if (!d && !adv.length) return { example, subject: "", text: "" };
-  const part = (title, list) => !list.length ? "" : `${title}\n\n` + list.map((x) => `• ${x.line}\n  ${ACTION[x.status.key] ?? ""}`.trimEnd()).join("\n\n") + "\n\n";
-  const counts = d ? [d.urgent.length && `${d.urgent.length} דחופים`, d.soon.length && `${d.soon.length} שיפוגו בחודש הקרוב`, d.inProgress.length && `${d.inProgress.length} בטיפול`].filter(Boolean).join(", ") : "";
-  const subject = d ? d.subject : "עדכון מקדמות";
-  const text = "שלום,\n\n" + fill(t.opening) + "\n\n"
-    + (counts ? `השבוע: ${counts}.\n\n` : "")
-    + (d ? part("דחוף, לטפל השבוע:", d.urgent) + part("יפוג בחודש הקרוב:", d.soon) + part("בטיפול:", d.inProgress) : "")
-    + (adv.length ? "מקדמות:\n\n" + adv.map((x) => "• " + x).join("\n") + "\n\n" : "")
-    + fill(t.closing) + "\n\n" + t.signature;
-  return { example, subject, text };
+  if (state.clients.length) { try { adv = (window.OfficePilot.advanceDigest?.() || []).filter(Boolean); } catch {} }
+  return officeMail(state, { today: todayIso(), siteUrl: CLOUD ? SITE_URL : "האתר של המשרד", advLines: adv });
 }
 function renderMail(force = false) {
   const m = buildMail();
@@ -1218,6 +1248,28 @@ $("mt-save").onclick = () => {
   save(); renderMail(true); $("mt-msg").textContent = "נשמר";
 };
 $("mt-default").onclick = () => { delete state.settings.mail; save(); renderMail(true); $("mt-msg").textContent = "הוחזר לברירת המחדל"; };
+
+// Automatic sending (cloud): the runner on the Israeli computer sends on Sundays to the office recipients only.
+const parseRecipients = (s) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
+const validEmail = (x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
+function renderMailSettings() {
+  if (document.activeElement !== $("mail-to")) $("mail-to").value = (state.settings.mailTo || []).join(", ");
+  $("mail-auto").checked = !!state.settings.mailAuto;
+}
+$("mail-save-to").onclick = () => {
+  const list = parseRecipients($("mail-to").value);
+  const bad = list.filter((x) => !validEmail(x));
+  if (bad.length) { $("mail-to-msg").textContent = "כתובת לא תקינה: " + bad.join(", "); return; }
+  state.settings.mailTo = list; state.settings.mailAuto = $("mail-auto").checked; save();
+  $("mail-to-msg").textContent = list.length ? (state.settings.mailAuto ? "נשמר. המייל יישלח בכל יום ראשון." : "נשמר. השליחה האוטומטית כבויה.") : "נשמר, אבל אין נמענים.";
+};
+$("mail-test").onclick = async () => {
+  if (!(state.settings.mailTo || []).length) { $("mail-to-msg").textContent = "קודם שומרים לפחות נמען אחד."; return; }
+  const { data: { user } } = await sb.auth.getUser();
+  const { error } = await sb.from("op_runs").insert({ office_id: officeId, requested_by: user.id, kind: "mail" });
+  $("mail-to-msg").textContent = error ? "לא הצלחתי לבקש שליחה: " + error.message : "הבקשה נשלחה. המייל ייצא תוך כמה דקות מהמחשב שמריץ את העדכונים.";
+  refreshRuns();
+};
 
 // ---------- settings
 function renderSettings() {
@@ -1279,7 +1331,7 @@ document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => {
 $("q").oninput = (e) => { query = e.target.value; renderTable(); };
 $("clear-f").onclick = () => { Object.values(fs).forEach((s) => s.clear()); query = ""; $("q").value = ""; closePop(); renderTable(); };
 document.querySelectorAll("#p-clients .fh").forEach((b) => (b.onclick = () => (openCol === b.dataset.col ? closePop() : openPop(b.dataset.col, b))));
-function renderAll() { renderSettings(); renderUpdate(); renderTable(); renderMail(); }
+function renderAll() { renderSettings(); renderUpdate(); renderTable(); renderMail(); renderMailSettings(); }
 function showTab(panel) { document.querySelector(`.tab[data-panel="${panel}"]`).click(); }
 
 // ---------- first visit + help
@@ -1350,12 +1402,19 @@ $("s-tax-save").onclick = async () => {
 let runPoll = null, seenRun = null;
 const RUN_LABEL = { queued: "ממתין להרצה", running: "רץ עכשיו מול רשות המסים", done: "הסתיים", error: "נכשל" };
 async function refreshRuns() {
-  const [{ data: runs }, { data: seen }] = await Promise.all([
-    sb.from("op_runs").select("id, kind, status, message, requested_at, finished_at").eq("office_id", officeId).order("requested_at", { ascending: false }).limit(3),
+  const [{ data: runs }, { data: seen }, { data: mails }] = await Promise.all([
+    sb.from("op_runs").select("id, kind, status, message, requested_at, finished_at").eq("office_id", officeId).in("kind", ["manual", "weekly"]).order("requested_at", { ascending: false }).limit(3),
     sb.from("op_runner").select("seen_at").maybeSingle(),
+    sb.from("op_runs").select("status, message, requested_at, finished_at").eq("office_id", officeId).in("kind", ["mail", "weekly-mail"]).order("requested_at", { ascending: false }).limit(1),
   ]);
   const last = runs && runs[0];
   const when = (t) => t ? new Date(t).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" }) : "";
+  const lm = mails && mails[0];
+  if (lm) {
+    const label = { queued: "המייל ממתין לשליחה", running: "המייל נשלח עכשיו", done: "המייל נשלח", error: "שליחת המייל נכשלה" }[lm.status] || lm.status;
+    $("mail-to-msg").textContent = `${label} · ${when(lm.finished_at || lm.requested_at)}${lm.message ? " · " + lm.message : ""}`;
+    if (lm.status === "queued" || lm.status === "running") setTimeout(refreshRuns, 10000);
+  }
   $("auto-status").innerHTML = last
     ? `<div class="${last.status === "error" ? "warn" : "note"}"><b>${RUN_LABEL[last.status] || last.status}</b>${last.kind === "weekly" ? " (העדכון השבועי)" : ""} · ${when(last.finished_at || last.requested_at)}${last.message ? `<br>${esc(last.message)}` : ""}</div>`
     : "עוד לא הורץ עדכון אוטומטי.";
@@ -2055,6 +2114,116 @@ function buildAdvanceWorkbook(rows          )             {
   return makeXlsx([{ name: "סיכום", rows: summary, widths: [24, 10, 12, 12, 12, 12, 14, 12, 70, 18] }, ...clientSheets, br.sheet]);
 }
 
+// ---- advance-payments/engine/state.ts
+// פונקציות טהורות שעובדות על ה-state של המוצר המשותף (state.clients + state.advance).
+// משמשות גם את הלשונית בדפדפן וגם את המריץ בשרת, כדי שהמייל והקובץ יהיו זהים בשני המקומות.
+                                                        
+
+
+
+
+
+const ADV_DEFAULT_SCHEDULE                    = [
+  { key: "annual", label: "בדיקה שנתית", day: 20, month: 1 },
+  { key: "midyear", label: "בדיקת אמצע שנה", day: 1, month: 7 },
+];
+const ADV_KIND_OF                                           = { "עצמאי": "individual", "חברה": "company" };
+
+function advParseNum(v         )                     {
+  const s = String(v ?? "").trim();
+  if (s === "") return undefined;
+  const n = Number(s.replace(/[,\s₪%]/g, ""));
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function advAvailableYears()           {
+  return [2027, 2026, 2025].filter((y) => { try { getTaxParams(y); return true; } catch { return false; } });
+}
+
+function advForecastYear(adv                      , todayIso        )         {
+  const years = advAvailableYears();
+  const set = adv?.settings?.forecastYear;
+  if (set && years.includes(set)) return set;
+  const y = Number(todayIso.slice(0, 4));
+  return years.includes(y) ? y : years[0];
+}
+
+function advInputForClient(client              , adv                      , todayIso        ) 
+                                                                {
+  const kind = ADV_KIND_OF[client.type];
+  if (!kind) return { skip: `לא נכלל: ${client.type}` };
+  const c                 = adv?.clients?.[client.clientId] ?? {};
+  const fy = advForecastYear(adv, todayIso);
+  const sm = c.sumit ?? {};
+  const manual = c.manualBase && advParseNum(c.manualBase.revenue) !== undefined;
+  const base = manual
+    ? { year: fy - 1, revenue: advParseNum(c.manualBase .revenue) , expenses: advParseNum(c.manualBase .expenses) ?? 0 }
+    : sm.base;
+  const rate = advParseNum(c.currentRatePct);
+  const revenue = advParseNum(c.forecastRevenue);
+  if (rate === undefined) return { missing: "חסר שיעור מקדמה נוכחי" };
+  if (!revenue) return { missing: "חסרה הכנסה צפויה" };
+  if (!base && !sm.ytd) return { missing: "חסרים נתונים מ-SUMIT" };
+  return { input: {
+    clientId: client.clientId, name: client.name, kind, currentRatePct: rate,
+    base, prevBaseRevenue: manual ? undefined : sm.prevBaseRevenue, ytd: sm.ytd,
+    forecastYear: fy, forecastRevenue: revenue,
+    salary: advParseNum(c.salary), creditPoints: advParseNum(c.creditPoints),
+    expenseChange: !!c.expenseChange, salaryChanged: !!c.salaryChanged,
+    largeAssetPurchase: !!c.largeAsset, fixedAmountAdvance: !!c.fixed,
+  } };
+}
+
+function advanceRowsFromState(state             , todayIso        )           {
+  return (state.clients ?? []).map((client) => {
+    const p = advInputForClient(client, state.advance, todayIso);
+    if ("skip" in p) return { client, status: "skip", text: p.skip };
+    if ("missing" in p) return { client, status: "missing", text: p.missing };
+    try { return { client, status: "ok", input: p.input, result: calculateClient(p.input) }; }
+    catch (e) { return { client, status: "error", text: e instanceof Error ? e.message : String(e), input: p.input }; }
+  });
+}
+
+const advDateIso = (y        , m        , d        ) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+// מועד בדיקה הגיע אם התאריך של השנה הנוכחית עבר ועוד לא נרשמה ריצה מאז
+function advScheduleStatusOf(item                 , last                    , todayIso        )                                               {
+  const y = Number(todayIso.slice(0, 4));
+  const thisYear = advDateIso(y, item.month, item.day);
+  const lastRun = last ?? "";
+  const due = todayIso >= thisYear && lastRun < thisYear;
+  const next = due || todayIso < thisYear ? thisYear : advDateIso(y + 1, item.month, item.day);
+  return { due, next, last: lastRun };
+}
+
+function advanceDigestFromState(state             , todayIso        )           {
+  const clients = state.clients ?? [];
+  if (!clients.length) return [];
+  const adv = state.advance ?? {};
+  const schedule = adv.settings?.schedule ?? ADV_DEFAULT_SCHEDULE;
+  const lines = schedule.filter((it) => advScheduleStatusOf(it, adv.runs?.[it.key], todayIso).due)
+    .map((it) => `הגיע מועד ${it.key === "annual" ? "הבדיקה השנתית" : "בדיקת אמצע השנה"} (${String(it.day).padStart(2, "0")}/${String(it.month).padStart(2, "0")}). להריץ בלשונית מקדמות.`);
+  const groups                                                 = { raise: [], lower: [], review: [] };
+  for (const r of advanceRowsFromState(state, todayIso)) {
+    if (r.status !== "ok") continue;
+    const rec = r.result.recommendation;
+    if (rec !== "raise" && rec !== "lower" && rec !== "review") continue;
+    groups[rec].push(`${r.client.name} (${pct(r.result.currentRatePct)} ← ${pct(r.result.proposedRatePct ?? r.result.newRatePct ?? 0)})`);
+  }
+  if (groups.raise.length) lines.push(`להעלות מקדמה: ${groups.raise.join(", ")}.`);
+  if (groups.lower.length) lines.push(`להוריד מקדמה, אחרי בדיקה: ${groups.lower.join(", ")}.`);
+  if (groups.review.length) lines.push(`לבדוק לפני החלטה: ${groups.review.join(", ")}.`);
+  if (lines.length && (groups.raise.length || groups.lower.length || groups.review.length)) lines.push("החישוב המלא לכל לקוח מצורף כקובץ אקסל.");
+  return lines;
+}
+
+function buildAdvanceFromState(state             , todayIso        )                                                                  {
+  const rows = advanceRowsFromState(state, todayIso).filter((r) => r.status === "ok");
+  if (!rows.length) return null;
+  const run = runAll(rows.map((r) => r.input ));
+  return { filename: `מקדמות-${advForecastYear(state.advance, todayIso)}.xlsx`, bytes: buildAdvanceWorkbook(run), clients: run.filter((r) => r.result).length };
+}
+
 // ---- לשונית המקדמות. רץ בתוך IIFE אחרי מנוע המקדמות (calculateClient, toCsv, runAll ועוד).
 const advOP = window.OfficePilot;
 const advEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -2081,12 +2250,7 @@ function advStore() {
 const advIso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const advIl = (iso) => iso.split("-").reverse().join("/");
 function advScheduleStatus(item, today = new Date()) {
-  const last = advStore().runs[item.key] || "";
-  const y = today.getFullYear();
-  const thisYear = advIso(new Date(y, item.month - 1, item.day));
-  const due = advIso(today) >= thisYear && last < thisYear;
-  const next = due ? thisYear : advIso(today) < thisYear ? thisYear : advIso(new Date(y + 1, item.month - 1, item.day));
-  return { due, next, last };
+  return advScheduleStatusOf(item, advStore().runs[item.key], advIso(today));
 }
 function advScheduleHtml() {
   const a = advStore();
@@ -2186,25 +2350,7 @@ async function advMigrateKeys() {
 
 // ---------- מקלט החישוב
 function advInputFor(client) {
-  const kind = ADV_KIND[client.type];
-  const c = advClientData(client.clientId);
-  const s = advStore().settings;
-  if (!kind) return { skip: `לא נכלל: ${client.type}` };
-  const sm = c.sumit || {};
-  const base = c.manualBase && advNum(c.manualBase.revenue) !== undefined
-    ? { year: s.forecastYear - 1, revenue: advNum(c.manualBase.revenue), expenses: advNum(c.manualBase.expenses) ?? 0 }
-    : sm.base;
-  if (advNum(c.currentRatePct) === undefined) return { missing: "חסר שיעור מקדמה נוכחי" };
-  if (!advNum(c.forecastRevenue)) return { missing: "חסרה הכנסה צפויה" };
-  if (!base && !sm.ytd) return { missing: "חסרים נתונים מ-SUMIT" };
-  return { input: {
-    clientId: client.clientId, name: client.name, kind, currentRatePct: advNum(c.currentRatePct),
-    base, prevBaseRevenue: c.manualBase ? undefined : sm.prevBaseRevenue, ytd: sm.ytd,
-    forecastYear: s.forecastYear, forecastRevenue: advNum(c.forecastRevenue),
-    salary: advNum(c.salary), creditPoints: advNum(c.creditPoints),
-    expenseChange: !!c.expenseChange, salaryChanged: !!c.salaryChanged,
-    largeAssetPurchase: !!c.largeAsset, fixedAmountAdvance: !!c.fixed,
-  } };
+  return advInputForClient(client, advStore(), advIso(new Date()));
 }
 function advRow(client) {
   const p = advInputFor(client);
@@ -2423,6 +2569,7 @@ function advWire() {
     }
     if (t.id === "adv-export") {
       const att = advOP.advanceAttachment();
+      if (!att.clients) { document.getElementById("adv-msg").innerHTML = `<div class="warn">אין עדיין לקוחות עם חישוב. מזינים שיעור נוכחי, הכנסה צפויה ונתונים.</div>`; return; }
       const blob = new Blob([att.bytes], { type: att.mime });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob); link.download = att.filename;
@@ -2464,32 +2611,15 @@ function advWire() {
 }
 
 // שורות למייל השבועי של המשרד: מה צריך לעשות, עם שמות הלקוחות
-advOP.advanceDigest = () => {
-  const clients = advOP.getClients();
-  if (!clients.length) return [];
-  const lines = advStore().settings.schedule.filter((it) => advScheduleStatus(it).due)
-    .map((it) => `הגיע מועד ${it.key === "annual" ? "הבדיקה השנתית" : "בדיקת אמצע השנה"} (${String(it.day).padStart(2, "0")}/${String(it.month).padStart(2, "0")}). להריץ בלשונית מקדמות.`);
-  const groups = { raise: [], lower: [], review: [] };
-  for (const cl of clients) {
-    const r = advRow(cl);
-    if (r.status !== "ok" || !(r.result.recommendation in groups)) continue;
-    const x = r.result;
-    groups[x.recommendation].push(`${cl.name} (${pct(x.currentRatePct)} ← ${pct(x.proposedRatePct ?? x.newRatePct)})`);
-  }
-  if (groups.raise.length) lines.push(`להעלות מקדמה: ${groups.raise.join(", ")}.`);
-  if (groups.lower.length) lines.push(`להוריד מקדמה, אחרי בדיקה: ${groups.lower.join(", ")}.`);
-  if (groups.review.length) lines.push(`לבדוק לפני החלטה: ${groups.review.join(", ")}.`);
-  return lines;
-};
+advOP.advanceDigest = () => advanceDigestFromState(advOP.getState(), advIso(new Date()));
 
 // קובץ האקסל של החישוב, לצירוף למייל המקדמות. מחזיר גם base64, לשליחה מהשרת
 advOP.advanceAttachment = () => {
-  const rows = runAll(advOP.getClients().map((cl) => advInputFor(cl).input).filter(Boolean));
-  const bytes = buildAdvanceWorkbook(rows);
+  const a = buildAdvanceFromState(advOP.getState(), advIso(new Date()));
+  if (!a) return { filename: "", mime: "", bytes: new Uint8Array(), base64: "", clients: 0 };
   let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  return { filename: `מקדמות-${advStore().settings.forecastYear}.xlsx`, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    bytes, base64: btoa(bin), clients: rows.filter((r) => r.result).length };
+  for (let i = 0; i < a.bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, a.bytes.subarray(i, i + 0x8000));
+  return { ...a, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: btoa(bin) };
 };
 
 // הסבר החישוב בלשונית העזרה. הדוגמה מחושבת במנוע עצמו, כך שהמספרים תמיד תואמים
