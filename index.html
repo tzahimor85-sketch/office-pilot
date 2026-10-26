@@ -205,6 +205,23 @@ textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); bord
     <article class="card cloud-only" hidden>
       <h2>שליחה אוטומטית</h2>
       <p class="sub">המייל נשלח רק לאנשי המשרד. ללקוחות לא נשלח שום מייל.</p>
+      <h3>תיבת המייל של המשרד, שממנה יוצא המייל</h3>
+      <div class="sub" id="mbox-status">עוד לא חוברה תיבת מייל.</div>
+      <div class="admin-only">
+        <div class="field"><label for="mbox-sender">כתובת המייל של המשרד</label><input id="mbox-sender" class="ltr" placeholder="office@gmail.com"></div>
+        <div class="field"><label for="mbox-pw">סיסמת אפליקציה</label><input id="mbox-pw" type="password" autocomplete="off" class="ltr"></div>
+        <details class="sub"><summary>איך יוצרים סיסמת אפליקציה?</summary>
+          <p><b>Gmail:</b> נכנסים ל-<a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>, כותבים שם, למשל "מעקב אישורים", ולוחצים "Create". מעתיקים את 16 האותיות לכאן. צריך שבחשבון יהיה מופעל אימות דו-שלבי.</p>
+          <p><b>Outlook או Microsoft 365:</b> נכנסים ל-<a href="https://account.microsoft.com/security" target="_blank" rel="noopener">account.microsoft.com/security</a>, אחר כך "אפשרויות אבטחה מתקדמות" ו"סיסמאות אפליקציה".</p>
+          <p>סיסמת אפליקציה מאפשרת רק שליחת מיילים, ואפשר לבטל אותה בכל רגע באותו מסך. היא נשמרת אצלנו מוצפנת, ולא מוצגת שוב.</p>
+        </details>
+        <details class="sub"><summary>הגדרות מתקדמות (לתיבה שאינה Gmail או Outlook)</summary>
+          <div class="field"><label for="mbox-host">שרת יוצא (SMTP)</label><input id="mbox-host" class="ltr" placeholder="smtp.example.co.il"></div>
+          <div class="field"><label for="mbox-port">פורט</label><select id="mbox-port"><option value="465">465 (SSL)</option><option value="587">587 (STARTTLS)</option></select></div>
+        </details>
+        <div><button class="btn small" id="mbox-save">חבר תיבה</button> <span class="sub" id="mbox-msg"></span></div>
+      </div>
+      <h3>למי לשלוח</h3>
       <div class="field"><label for="mail-to">נמענים במשרד (כמה כתובות, מופרדות בפסיק)</label><input id="mail-to" class="ltr" placeholder="office@example.co.il, rina@example.co.il"></div>
       <label class="sub"><input type="checkbox" id="mail-auto"> לשלוח אוטומטית בכל יום ראשון בבוקר, עם קובץ החישוב של המקדמות</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" id="mail-save-to">שמור</button><button class="btn ghost small" id="mail-test">שלח עכשיו מייל בדיקה לנמענים</button></div>
@@ -1263,6 +1280,18 @@ $("mail-save-to").onclick = () => {
   state.settings.mailTo = list; state.settings.mailAuto = $("mail-auto").checked; save();
   $("mail-to-msg").textContent = list.length ? (state.settings.mailAuto ? "נשמר. המייל יישלח בכל יום ראשון." : "נשמר. השליחה האוטומטית כבויה.") : "נשמר, אבל אין נמענים.";
 };
+async function refreshMailbox() {
+  const { data } = await sb.rpc("op_mail_status", { o: officeId });
+  const row = data && data[0];
+  $("mbox-status").textContent = row ? `המייל יוצא מ-${row.sender} (חובר ב-${formatDate(row.updated_at.slice(0, 10))}).` : "עוד לא חוברה תיבת מייל. בלי תיבה, המייל לא יכול לצאת.";
+}
+$("mbox-save").onclick = async () => {
+  const host = $("mbox-host").value.trim();
+  try {
+    const r = await adminFn({ action: "setMailCreds", sender: $("mbox-sender").value.trim(), password: $("mbox-pw").value, host, port: host ? Number($("mbox-port").value) : 0 });
+    $("mbox-pw").value = ""; $("mbox-msg").textContent = `חובר (${r.host}). כדאי לשלוח מייל בדיקה.`; refreshMailbox();
+  } catch (e) { $("mbox-msg").textContent = e.message; }
+};
 $("mail-test").onclick = async () => {
   if (!(state.settings.mailTo || []).length) { $("mail-to-msg").textContent = "קודם שומרים לפחות נמען אחד."; return; }
   const { data: { user } } = await sb.auth.getUser();
@@ -1411,7 +1440,7 @@ async function refreshRuns() {
   const when = (t) => t ? new Date(t).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" }) : "";
   const lm = mails && mails[0];
   if (lm) {
-    const label = { queued: "המייל ממתין לשליחה", running: "המייל נשלח עכשיו", done: "המייל נשלח", error: "שליחת המייל נכשלה" }[lm.status] || lm.status;
+    const label = { queued: "המייל ממתין לשליחה", running: "שולח עכשיו", done: "המייל נשלח", error: "שליחת המייל נכשלה" }[lm.status] || lm.status;
     $("mail-to-msg").textContent = `${label} · ${when(lm.finished_at || lm.requested_at)}${lm.message ? " · " + lm.message : ""}`;
     if (lm.status === "queued" || lm.status === "running") setTimeout(refreshRuns, 10000);
   }
@@ -1451,6 +1480,7 @@ async function enterOffice() {
   await pullCloud();
   if (myRole === "admin") loadUsers();
   refreshTaxStatus();
+  refreshMailbox();
   refreshRuns();
   if (!state.office.name && m.op_offices) { state.office.name = m.op_offices.name; }
   $("login").hidden = true;
