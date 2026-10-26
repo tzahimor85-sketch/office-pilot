@@ -2128,6 +2128,18 @@ function advWire() {
   });
 }
 
+// שורות למייל השבועי של המשרד: מועדי בדיקה שהגיעו, ולקוחות שממתינים להחלטה
+advOP.advanceDigest = () => {
+  const lines = advStore().settings.schedule.filter((it) => advScheduleStatus(it).due)
+    .map((it) => `הגיע מועד ${it.key === "annual" ? "הבדיקה השנתית" : "בדיקת אמצע השנה"} (${String(it.day).padStart(2, "0")}/${String(it.month).padStart(2, "0")}). להריץ בלשונית מקדמות.`);
+  const counts = { raise: 0, lower: 0, review: 0 };
+  for (const cl of advOP.getClients()) { const r = advRow(cl); if (r.status === "ok" && r.result.recommendation in counts) counts[r.result.recommendation]++; }
+  if (counts.raise) lines.push(`${counts.raise} לקוחות שמומלץ להעלות להם מקדמה.`);
+  if (counts.lower) lines.push(`${counts.lower} לקוחות שמומלץ להוריד להם מקדמה (לבדוק לפני הגשה).`);
+  if (counts.review) lines.push(`${counts.review} לקוחות מסומנים "לבדוק".`);
+  return lines;
+};
+
 advRender();
 advWire();
 advRefreshConnected().then(advMigrateKeys).then(advRender);
