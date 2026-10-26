@@ -1715,23 +1715,20 @@ function advTypeCode(t) {
   const m = String(t ?? "").match(/(\d+)/);
   return m ? Number(m[1]) : -1;
 }
-async function advSumitList(cred, from, to, types) {
+// המפתח לא נמצא כאן. בענן הוא שמור מוצפן בשרת, והשרת מוסיף את Credentials
+async function advSumitList(id, from, to, types) {
   const docs = [];
   for (let start = 0; ; start += 1000) {
-    const res = await fetch("https://api.sumit.co.il/accounting/documents/list/", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ Credentials: { CompanyID: Number(cred.companyId), APIKey: cred.apiKey }, DocumentTypes: types,
-        DateFrom: from + "T00:00:00", DateTo: to + "T23:59:59", IncludeDrafts: false, Paging: { StartIndex: start, PageSize: 1000 } }),
-    });
-    const body = await res.json();
+    const body = await advOP.sumit(id, "/accounting/documents/list/", { DocumentTypes: types,
+      DateFrom: from + "T00:00:00", DateTo: to + "T23:59:59", IncludeDrafts: false, Paging: { StartIndex: start, PageSize: 1000 } });
     const ok = body.Status === 0 || String(body.Status).startsWith("Success");
     if (!ok) throw new Error(body.UserErrorMessage || "SUMIT החזיר שגיאה");
     docs.push(...(body.Data?.Documents || []));
     if (!body.Data?.HasNextPage) return docs;
   }
 }
-async function advSumitTotals(cred, from, to, vatDiv) {
-  const docs = await advSumitList(cred, from, to, [0, 1, 5, 6, 15, 16, 19, 20]);
+async function advSumitTotals(id, from, to, vatDiv) {
+  const docs = await advSumitList(id, from, to, [0, 1, 5, 6, 15, 16, 19, 20]);
   let revenue = 0, expenses = 0, count = 0;
   for (const d of docs) {
     if (d.IsDraft) continue;
@@ -1745,19 +1742,35 @@ async function advSumitTotals(cred, from, to, vatDiv) {
 async function advFetchClient(id) {
   const c = advClientData(id);
   const s = advStore().settings;
-  if (!c.companyId || !c.apiKey) throw new Error("חסרים מספר חברה ומפתח API של SUMIT");
+  if (!advConnected.has(id)) throw new Error("הלקוח לא מחובר ל-SUMIT");
   const div = s.vatIncluded ? 1 + s.vatRate / 100 : 1;
   const by = s.forecastYear - 1;
   const today = new Date();
   const ty = today.getFullYear();
   const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  const base = await advSumitTotals(c, `${by}-01-01`, `${by}-12-31`, div);
-  const prev = await advSumitTotals(c, `${by - 1}-01-01`, `${by - 1}-12-31`, div);
-  const ytd = await advSumitTotals(c, `${ty}-01-01`, iso(today), div);
+  const base = await advSumitTotals(id, `${by}-01-01`, `${by}-12-31`, div);
+  const prev = await advSumitTotals(id, `${by - 1}-01-01`, `${by - 1}-12-31`, div);
+  const ytd = await advSumitTotals(id, `${ty}-01-01`, iso(today), div);
   const months = today.getMonth() + today.getDate() / new Date(ty, today.getMonth() + 1, 0).getDate();
   c.sumit = { base: { year: by, revenue: base.revenue, expenses: base.expenses }, prevBaseRevenue: prev.revenue,
     ytd: { months: Math.round(months * 10) / 10, revenue: ytd.revenue, expenses: ytd.expenses },
     docs: base.count + prev.count + ytd.count, fetchedAt: iso(today), error: null };
+}
+
+// רשימת הלקוחות שיש להם מפתח SUMIT (בענן: מהשרת)
+let advConnected = new Set();
+async function advRefreshConnected() {
+  try { advConnected = new Set(await advOP.sumitConnected()); } catch { advConnected = new Set(); }
+}
+// מפתחות ישנים שנשמרו ב-state לפני המעבר לענן: מעבירים לשמירה המאובטחת ומוחקים
+async function advMigrateKeys() {
+  const a = advStore();
+  let moved = false;
+  for (const [id, c] of Object.entries(a.clients)) {
+    if (c.apiKey && c.companyId) { try { await advOP.setSumitKey(id, c.companyId, c.apiKey); } catch {} }
+    if ("apiKey" in c || "companyId" in c) { delete c.apiKey; delete c.companyId; moved = true; }
+  }
+  if (moved) advOP.save();
 }
 
 // ---------- מקלט החישוב
@@ -1823,7 +1836,7 @@ function advRender() {
     const key = advRecKey(r);
     const pill = r.status === "ok" ? ADV_PILL[res.recommendation] : r.status === "skip" ? "gray" : "amber";
     const gap = res && res.yearEndGap !== null ? (res.yearEndGap > 0 ? `חוב ${ils(res.yearEndGap)}` : res.yearEndGap < 0 ? `עודף ${ils(-res.yearEndGap)}` : "—") : "";
-    const sumit = c.sumit?.fetchedAt ? `<span class="pill green">נשלף ${advEsc(c.sumit.fetchedAt.split("-").reverse().join("/"))}</span>`
+    const sumit = advConnected.has(r.client.clientId) && !c.sumit?.fetchedAt ? `<span class="pill blue">מחובר</span>` : c.sumit?.fetchedAt ? `<span class="pill green">נשלף ${advEsc(c.sumit.fetchedAt.split("-").reverse().join("/"))}</span>`
       : c.sumit?.error ? `<span class="pill red">שגיאה</span>` : c.manualBase ? `<span class="pill gray">ידני</span>` : `<span class="pill gray">לא מחובר</span>`;
     return `<tr class="${res?.mustReviewBeforeFiling ? "amber" : ""}">
       <td><button class="linkname" data-adv-open="${advEsc(r.client.clientId)}">${advEsc(r.client.name)}</button></td>
@@ -1900,10 +1913,10 @@ function advModal(id) {
     ${res ? `<div class="note"><b>${advEsc(ADV_REC_LABEL[res.recommendation])}</b>: ${advEsc(res.reasonHe)}</div>` : `<div class="warn">${advEsc(r.text || "")}</div>`}
     <h3>חיבור ל-SUMIT</h3>
     <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
-      <div class="field"><label>מספר חברה (CompanyID)</label><input class="ltr" id="adv-m-cid" value="${advEsc(c.companyId ?? "")}"></div>
-      <div class="field"><label>מפתח API</label><input class="ltr" id="adv-m-key" type="password" value="${advEsc(c.apiKey ?? "")}"></div>
+      <div class="field"><label>מספר חברה (CompanyID)</label><input class="ltr" id="adv-m-cid" placeholder="${advConnected.has(id) ? "מחובר. להחלפה מזינים מחדש" : ""}"></div>
+      <div class="field"><label>מפתח API</label><input class="ltr" id="adv-m-key" type="password" autocomplete="off" placeholder="${advConnected.has(id) ? "נשמר בצורה מאובטחת" : ""}"></div>
     </div>
-    <div class="row"><button class="btn ghost small" id="adv-m-fetch">שמור ושלוף מ-SUMIT</button>
+    <div class="row"><button class="btn ghost small" id="adv-m-fetch">${advConnected.has(id) ? "שליפה מ-SUMIT" : "חיבור ושליפה מ-SUMIT"}</button>${advConnected.has(id) ? `<button class="btn ghost small" id="adv-m-disconnect">ניתוק</button>` : ""}
       <span class="sub" id="adv-m-fetchmsg">${sm?.fetchedAt ? `נשלף ${sm.docs} מסמכים. ${by}: הכנסות ${ils(sm.base.revenue)}, הוצאות ${ils(sm.base.expenses)}. השנה עד היום: ${ils(sm.ytd.revenue)} / ${ils(sm.ytd.expenses)}.` : advEsc(sm?.error || "")}</span></div>
     <h3>נתונים</h3>
     <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
@@ -1924,7 +1937,6 @@ function advModal(id) {
   document.body.appendChild(back);
   const val = (i) => back.querySelector(i)?.value ?? "";
   const collect = () => {
-    c.companyId = val("#adv-m-cid").trim(); c.apiKey = val("#adv-m-key").trim();
     c.manualBase = val("#adv-m-brev").trim() ? { revenue: val("#adv-m-brev"), expenses: val("#adv-m-bexp") } : undefined;
     if (back.querySelector("#adv-m-salary")) { c.salary = val("#adv-m-salary"); c.creditPoints = val("#adv-m-points"); }
     c.fixed = back.querySelector("#adv-m-fixed").checked; c.largeAsset = back.querySelector("#adv-m-asset").checked;
@@ -1934,12 +1946,21 @@ function advModal(id) {
   back.querySelector("#adv-m-close").onclick = close;
   back.onclick = (e) => { if (e.target === back) close(); };
   back.querySelector("#adv-m-save").onclick = () => { collect(); advOP.save(); close(); advModal(id); };
+  back.querySelector("#adv-m-disconnect")?.addEventListener("click", async () => {
+    await advOP.deleteSumitKey(id); await advRefreshConnected(); advRender(); close(); advModal(id);
+  });
   back.querySelector("#adv-m-copy")?.addEventListener("click", () => navigator.clipboard?.writeText(res.clientSummaryHe));
   back.querySelector("#adv-m-fetch").onclick = async () => {
     collect();
     const msg = back.querySelector("#adv-m-fetchmsg");
     msg.textContent = "שולף מ-SUMIT…";
-    try { await advFetchClient(id); advOP.save(); close(); advModal(id); }
+    try {
+      const cid = val("#adv-m-cid").trim(), key = val("#adv-m-key").trim();
+      if (cid && key) { msg.textContent = "שומר את המפתח…"; const r = await advOP.setSumitKey(id, cid, key); if (r && r.ok === false) throw new Error(r.error || "שמירת המפתח נכשלה"); await advRefreshConnected(); }
+      else if (cid || key) throw new Error("צריך גם מספר חברה וגם מפתח");
+      msg.textContent = "שולף מ-SUMIT…";
+      await advFetchClient(id); advOP.save(); close(); advModal(id);
+    }
     catch (e) { c.sumit = { ...(c.sumit || {}), error: "שגיאה בשליפה: " + e.message }; advOP.save(); msg.textContent = c.sumit.error; }
   };
 }
@@ -1964,7 +1985,9 @@ function advWire() {
     }
     if (t.id === "adv-fetch-all") {
       const msg = document.getElementById("adv-msg");
-      const list = advOP.getClients().filter((cl) => advClientData(cl.clientId).apiKey);
+      await advRefreshConnected();
+      const list = advOP.getClients().filter((cl) => advConnected.has(cl.clientId));
+      if (!list.length) { msg.innerHTML = `<div class="warn">אין לקוחות מחוברים ל-SUMIT. מחברים לקוח מתוך החלון שלו.</div>`; return; }
       let ok = 0; const bad = [];
       for (const cl of list) {
         msg.innerHTML = `<div class="note">שולף ${ok + bad.length + 1} מתוך ${list.length}…</div>`;
@@ -1994,6 +2017,8 @@ function advWire() {
 
 advRender();
 advWire();
+advRefreshConnected().then(advMigrateKeys).then(advRender);
+advOP.onChange(() => { advRefreshConnected().then(advRender); });
 
 })();
 </script>
