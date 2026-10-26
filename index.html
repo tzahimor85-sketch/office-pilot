@@ -330,6 +330,7 @@ textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); bord
       <details><summary>מה קורה כשמסמנים "לעדכן שאנחנו מחדשים"?</summary><p>בגרסת הפיילוט נרשם התאריך, אבל המייל ללקוח עוד לא נשלח לבד. אם האישור לא התחדש תוך 14 יום מהסימון, הלקוח מסומן כדחוף, כדי שההבטחה ללקוח לא תישכח.</p></details>
       <details><summary>מה זה "שותפות וירטואלית"?</summary><p>זה מצב של איחוד עוסקים במע"מ. רשות המסים מבקשת לבדוק כל שותף בנפרד, לפי תיק המס שלו.</p></details>
       <details><summary>רוב האישורים פגים בסוף מרץ. האם המערכת תציף אותי בהתראות?</summary><p>לא. האישורים החדשים יוצאים כבר בינואר, ולכן לקוח תקין מתעדכן לבד ויוצא מהרשימה. מי שנשאר ברשימה במרץ הוא לקוח שבאמת לא קיבל אישור. כשרשות המסים מאריכה אישורים בצו, מוסיפים את ההארכה בהגדרות.</p></details>
+      <details><summary>למה צריך קוד מהטלפון בכניסה?</summary><p>כדי שרק אתם תוכלו להיכנס, גם אם מישהו יודע את הסיסמה. בכניסה הראשונה מחברים את הטלפון פעם אחת: מתקינים אפליקציית אימות חינמית (Google Authenticator או Microsoft Authenticator) וסורקים את הקוד שמופיע במסך. מאותו רגע, בכל כניסה ממכשיר חדש או אחרי יציאה, מקלידים 6 ספרות מהאפליקציה. במחשב שכבר נכנסתם ממנו, אתם נשארים מחוברים. איבדתם או החלפתם טלפון? מנהל המשרד לוחץ "איפוס הטלפון" ליד השם שלכם, ובכניסה הבאה סורקים קוד חדש.</p></details>
       <details><summary>איפה נשמרים הנתונים?</summary><p>באתר, הנתונים נשמרים בשרת מאובטח, וכל משתמשי המשרד רואים את אותם נתונים. משרד אחר לא רואה אותם. את 6 הספרות מהשובר ואת מפתחות SUMIT שומרים מוצפנים, והם לא חוזרים למסך אף פעם. בגרסה שנפתחת כקובץ במחשב, הנתונים נשמרים רק בדפדפן.</p></details><details><summary>איך מוסיפים משתמש למשרד?</summary><p>מנהל המשרד נכנס ללשונית "הגדרות ולקוחות", לכרטיס "משתמשים במשרד", וממלא שם משתמש וסיסמה. אחרי היצירה מופיעים פרטי הכניסה, עם כפתורים להעתקה ולשליחה ב-WhatsApp או במייל. בכפתור "סיסמה חדשה" אפשר לקבוע סיסמה חדשה למי ששכח.</p></details>
       <details><summary>ומה עם המקדמות?</summary><p>שירות המקדמות ייכנס ללשונית "מקדמות" במוצר הזה, עם אותה רשימת לקוחות.</p></details>
     </article>
@@ -344,6 +345,29 @@ textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); bord
     <button class="btn" type="submit" id="login-go">כניסה</button>
     <p class="sub" id="login-msg"></p>
     <p class="sub">שכחתם סיסמה? מנהל המשרד יכול לקבוע לכם סיסמה חדשה.</p>
+  </form>
+</div>
+
+<div class="modal-back" id="mfa" hidden style="background:var(--bg)">
+  <form class="modal" id="mfa-form" style="width:min(460px,100%)">
+    <h2 id="mfa-title">כניסה עם הטלפון</h2>
+    <div id="mfa-enroll" hidden>
+      <p>כדי שרק אתם תוכלו להיכנס, מחברים פעם אחת את הטלפון. זה לוקח דקה.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><div><b>מתקינים אפליקציית אימות חינמית</b>, אם עוד אין לכם:
+          <div class="sub">Google Authenticator: <a href="https://apps.apple.com/app/google-authenticator/id388497605" target="_blank" rel="noopener">לאייפון</a> · <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2" target="_blank" rel="noopener">לאנדרואיד</a></div>
+          <div class="sub">או Microsoft Authenticator: <a href="https://apps.apple.com/app/microsoft-authenticator/id983156458" target="_blank" rel="noopener">לאייפון</a> · <a href="https://play.google.com/store/apps/details?id=com.azure.authenticator" target="_blank" rel="noopener">לאנדרואיד</a></div></div></li>
+        <li><span class="n">2</span><div><b>באפליקציה לוחצים "+" וסורקים את הקוד:</b>
+          <div style="background:#fff;padding:8px;border-radius:8px;width:fit-content;margin-top:6px"><img id="mfa-qr" alt="קוד לסריקה" width="180" height="180"></div>
+          <details class="sub"><summary>לא מצליחים לסרוק? אפשר להקליד קוד</summary><div class="ltr" id="mfa-secret" style="font-family:monospace;word-break:break-all"></div></details></div></li>
+        <li><span class="n">3</span><div><b>מקלידים את 6 הספרות שמופיעות באפליקציה</b></div></li>
+      </ol>
+    </div>
+    <p id="mfa-verify-text" hidden>פותחים את אפליקציית האימות בטלפון ומקלידים את 6 הספרות שמופיעות שם, ליד "Office Pilot".</p>
+    <input id="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" required class="ltr" style="font-size:24px;letter-spacing:6px;text-align:center" placeholder="000000">
+    <button class="btn" type="submit" id="mfa-go">כניסה</button>
+    <p class="sub" id="mfa-msg"></p>
+    <p class="sub">במחשב הזה תישארו מחוברים, והקוד יידרש שוב רק אחרי יציאה או במכשיר חדש. איבדתם את הטלפון? מנהל המשרד יכול לאפס, ותסרקו קוד חדש. <button type="button" class="btn ghost small" id="mfa-cancel">יציאה</button></p>
   </form>
 </div>
 
@@ -1380,8 +1404,12 @@ const SITE_URL = "https://tzahimor85-sketch.github.io/office-pilot/";
 async function loadUsers() {
   try {
     const { users } = await adminFn({ action: "listUsers" });
-    $("users-list").innerHTML = users.map((u) => `<div class="user-row"><b>${esc(u.username)}</b><span class="pill ${u.role === "admin" ? "blue" : "gray"}">${u.role === "admin" ? "מנהל" : "משתמש"}</span>${u.banned ? '<span class="pill red">חסום</span>' : ""}<button class="btn ghost small" data-reset="${u.userId}" data-name="${esc(u.username)}">סיסמה חדשה</button></div>`).join("");
+    $("users-list").innerHTML = users.map((u) => `<div class="user-row"><b>${esc(u.username)}</b><span class="pill ${u.role === "admin" ? "blue" : "gray"}">${u.role === "admin" ? "מנהל" : "משתמש"}</span>${u.banned ? '<span class="pill red">חסום</span>' : ""}<button class="btn ghost small" data-reset="${u.userId}" data-name="${esc(u.username)}">סיסמה חדשה</button><button class="btn ghost small" data-mfa-reset="${u.userId}" data-name="${esc(u.username)}">איפוס הטלפון</button></div>`).join("");
     document.querySelectorAll("[data-reset]").forEach((b) => (b.onclick = () => resetPw(b.dataset.reset, b.dataset.name)));
+    document.querySelectorAll("[data-mfa-reset]").forEach((b) => (b.onclick = async () => {
+      try { await adminFn({ action: "resetMfa", userId: b.dataset.mfaReset }); $("u-result").innerHTML = `<p class="note">אופס הטלפון של ${esc(b.dataset.name)}. בכניסה הבאה יסרוק קוד חדש.</p>`; }
+      catch (e) { $("u-result").innerHTML = `<p class="warn">${esc(e.message)}</p>`; }
+    }));
   } catch (e) { $("users-list").textContent = "לא הצלחתי לטעון משתמשים: " + e.message; }
 }
 function showCred(username, pw, note) {
@@ -1496,11 +1524,43 @@ if (CLOUD) {
     e.preventDefault();
     $("login-msg").textContent = "מתחבר…";
     const { error } = await sb.auth.signInWithPassword({ email: usernameToEmail($("login-email").value), password: stretch($("login-pw").value) });
-    if (error) { $("login-msg").textContent = "המייל או הסיסמה לא נכונים."; return; }
+    if (error) { $("login-msg").textContent = "שם המשתמש או הסיסמה לא נכונים."; return; }
     $("login-msg").textContent = "";
     $("me").textContent = $("login-email").value.trim().replace(/\s+/g, " ");
+    await afterSignIn();
+  };
+  // Two-step sign-in: the office data opens only after the code from the phone app (the server checks aal2 too).
+  let mfaFactor = null;
+  async function afterSignIn() {
+    const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal?.currentLevel === "aal2") { $("login").hidden = true; return enterOffice(); }
+    const { data: f } = await sb.auth.mfa.listFactors();
+    const verified = (f?.totp || []).find((x) => x.status === "verified");
+    $("login").hidden = true; $("mfa").hidden = false; $("mfa-msg").textContent = ""; $("mfa-code").value = "";
+    if (verified) {
+      mfaFactor = verified.id;
+      $("mfa-title").textContent = "קוד מהטלפון"; $("mfa-enroll").hidden = true; $("mfa-verify-text").hidden = false;
+    } else {
+      for (const x of (f?.all || []).filter((x) => x.status !== "verified")) await sb.auth.mfa.unenroll({ factorId: x.id });
+      const { data, error } = await sb.auth.mfa.enroll({ factorType: "totp", issuer: "Office Pilot", friendlyName: "phone-" + Date.now() });
+      if (error) { $("mfa-msg").textContent = "לא הצלחתי להכין את החיבור לטלפון: " + error.message; return; }
+      mfaFactor = data.id;
+      $("mfa-title").textContent = "חיבור הטלפון, פעם אחת"; $("mfa-enroll").hidden = false; $("mfa-verify-text").hidden = true;
+      $("mfa-qr").src = data.totp.qr_code; $("mfa-secret").textContent = data.totp.secret;
+    }
+    setTimeout(() => $("mfa-code").focus(), 50);
+  }
+  $("mfa-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const code = $("mfa-code").value.replace(/\D/g, "");
+    if (code.length !== 6) { $("mfa-msg").textContent = "צריך 6 ספרות."; return; }
+    $("mfa-msg").textContent = "בודק…";
+    const { error } = await sb.auth.mfa.challengeAndVerify({ factorId: mfaFactor, code });
+    if (error) { $("mfa-msg").textContent = "הקוד לא נכון. מקלידים את הקוד שמופיע עכשיו באפליקציה (הוא מתחלף כל 30 שניות)."; $("mfa-code").value = ""; return; }
+    $("mfa").hidden = true;
     await enterOffice();
   };
+  $("mfa-cancel").onclick = async () => { await sb.auth.signOut(); location.reload(); };
   $("logout").onclick = async () => { await saving; await sb.auth.signOut(); location.reload(); };
   $("change-pw").onclick = () => { $("pw-box").hidden = !$("pw-box").hidden; };
   $("pw-save").onclick = async () => {
@@ -1511,7 +1571,7 @@ if (CLOUD) {
     $("pw-new").value = "";
   };
   sb.auth.getSession().then(async ({ data }) => {
-    if (data.session) { $("me").textContent = data.session.user.user_metadata?.username || data.session.user.email; await enterOffice(); }
+    if (data.session) { $("me").textContent = data.session.user.user_metadata?.username || data.session.user.email; await afterSignIn(); }
   });
   window.addEventListener("beforeunload", (e) => { if (saveTimer && $("sync").textContent === "שומר…") e.preventDefault(); });
 } else {
