@@ -1468,7 +1468,9 @@ function calibrate(input                )              {
 const DEFAULT_CP = 2.25;
 const nf = new Intl.NumberFormat("he-IL", { maximumFractionDigits: 0 });
 const ils = (n        ) => `${nf.format(Math.round(n))} ₪`;
-const num = (n        ) => nf.format(Math.round(n));
+// מספר שלילי עטוף בבידוד כיווניות (LRI…PDI), כדי שהמינוס יישאר צמוד למספר בטקסט מימין לשמאל
+const num = (n        ) => (Math.round(n) < 0 ? `⁦-${nf.format(-Math.round(n))}⁩` : nf.format(Math.round(n)));
+const plusMinus = (n        ) => (Math.round(n) < 0 ? `− ${nf.format(-Math.round(n))}` : `+ ${nf.format(Math.round(n))}`);
 const pct = (n        ) => `${Number(n.toFixed(2))}%`;
 
 const FLAG_HE                       = {
@@ -1516,7 +1518,7 @@ function buildSteps(input           , cal             , f          , yearEndGap 
   add("הכנסה צפויה", `${input.forecastYear}: ${ils(input.forecastRevenue)}`, input.forecastRevenue, "form");
   add("יחס הוצאות", `${pct(f.expenseRatio * 100)} (${f.expenseRatioSource === "ytd" ? "מהשנה הנוכחית עד היום" : "משנת הבסיס"})`, f.expenseRatio, "sumit");
   add("הוצאות צפויות", `${num(input.forecastRevenue)} × ${pct(f.expenseRatio * 100)} = ${num(f.forecastExpenses)}`, f.forecastExpenses, "calc");
-  add("הכנסה חייבת צפויה", `${num(input.forecastRevenue)} − ${num(f.forecastExpenses)} + ${num(cal.adjustment)} = ${num(f.taxableIncome)}`, f.taxableIncome, "calc");
+  add("הכנסה חייבת צפויה", `${num(input.forecastRevenue)} − ${num(f.forecastExpenses)} ${plusMinus(cal.adjustment)} = ${num(f.taxableIncome)}`, f.taxableIncome, "calc");
   const taxHow = isInd
     ? `לפי מדרגות ${input.forecastYear}${input.salary ? ", מעל השכר" : ""} = ${num(f.tax)}`
     : `${num(f.taxableIncome)} × ${pct(getTaxParams(input.forecastYear).corporateRate * 100)} = ${num(f.tax)}`;
@@ -2004,7 +2006,21 @@ function advModal(id) {
   back.className = "modal-back"; back.id = "adv-modal";
   back.innerHTML = `<div class="modal" role="dialog" aria-label="${advEsc(client.name)}" style="width:min(860px,100%)">
     <h2>${advEsc(client.name)} <span class="sub">${advEsc(client.type)}</span></h2>
-    ${res ? `<div class="note"><b>${advEsc(ADV_REC_LABEL[res.recommendation])}</b>: ${advEsc(res.reasonHe)}</div>` : `<div class="warn">${advEsc(r.text || "")}</div>`}
+    ${res ? `<div class="note"><b>${advEsc(ADV_REC_LABEL[res.recommendation])}</b>: ${advEsc(res.reasonHe)}</div>
+    <div class="summary">
+      <div class="chip-card gray"><b>${pct(res.currentRatePct)}</b><span>שיעור נוכחי</span></div>
+      <div class="chip-card blue"><b>${res.newRatePct === null ? "—" : pct(res.newRatePct)}</b><span>שיעור מחושב</span></div>
+      <div class="chip-card ${ADV_PILL[res.recommendation]}"><b>${res.proposedRatePct === null ? "—" : pct(res.proposedRatePct)}</b><span>שיעור מוצע</span></div>
+      <div class="chip-card ${res.yearEndGap > 0 ? "red" : "green"}"><b>${res.yearEndGap === null ? "—" : ils(Math.abs(res.yearEndGap))}</b><span>${res.yearEndGap > 0 ? "חוב צפוי בסוף השנה" : "עודף צפוי בסוף השנה"}</span></div>
+    </div>
+    <h3>התחשיב</h3>${steps}
+    <h3>הסבר ללקוח</h3><div class="note" id="adv-m-summary">${advEsc(res.clientSummaryHe)}</div>` : `<div class="warn">${advEsc(r.text || "")}</div>`}
+    <details id="adv-m-data" ${res ? "" : "open"}><summary><b>נתונים וחיבור ל-SUMIT</b></summary>
+    <div style="display:grid;gap:12px;margin-top:12px">
+    <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      <div class="field"><label>שיעור מקדמה נוכחי (%)</label><input class="ltr" id="adv-m-rate" value="${advEsc(c.currentRatePct ?? "")}"></div>
+      <div class="field"><label>הכנסה צפויה (₪, בלי מע"מ)</label><input class="ltr" id="adv-m-fc" value="${advEsc(c.forecastRevenue ?? "")}"></div>
+    </div>
     <h3>חיבור ל-SUMIT</h3>
     <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       <div class="field"><label>מספר חברה (CompanyID)</label><input class="ltr" id="adv-m-cid" placeholder="${advConnected.has(id) ? "מחובר. להחלפה מזינים מחדש" : ""}"></div>
@@ -2012,7 +2028,7 @@ function advModal(id) {
     </div>
     <div class="row"><button class="btn ghost small" id="adv-m-fetch">${advConnected.has(id) ? "שליפה מ-SUMIT" : "חיבור ושליפה מ-SUMIT"}</button>${advConnected.has(id) ? `<button class="btn ghost small" id="adv-m-disconnect">ניתוק</button>` : ""}
       <span class="sub" id="adv-m-fetchmsg">${sm?.fetchedAt ? `נשלף ${sm.docs} מסמכים. ${by}: הכנסות ${ils(sm.base.revenue)}, הוצאות ${ils(sm.base.expenses)}. השנה עד היום: ${ils(sm.ytd.revenue)} / ${ils(sm.ytd.expenses)}.` : advEsc(sm?.error || "")}</span></div>
-    <h3>נתונים</h3>
+    <h3>נתוני שנת הבסיס ופרטים נוספים</h3>
     <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
       <div class="field"><label>הכנסות ${by} (ידני, במקום SUMIT)</label><input class="ltr" id="adv-m-brev" value="${advEsc(c.manualBase?.revenue ?? "")}"></div>
       <div class="field"><label>הוצאות ${by} (ידני)</label><input class="ltr" id="adv-m-bexp" value="${advEsc(c.manualBase?.expenses ?? "")}"></div>
@@ -2024,13 +2040,13 @@ function advModal(id) {
       <label><input type="checkbox" id="adv-m-asset" ${c.largeAsset ? "checked" : ""}> נרכש רכוש קבוע גדול</label>
       <label><input type="checkbox" id="adv-m-expch" ${c.expenseChange ? "checked" : ""}> צפוי שינוי בהוצאות</label>
     </div>
-    ${steps}
-    ${res ? `<h3>הסבר ללקוח</h3><div class="note" id="adv-m-summary">${advEsc(res.clientSummaryHe)}</div>` : ""}
+    </div></details>
     <div class="row"><button class="btn" id="adv-m-save">שמירה וחישוב</button>${res ? `<button class="btn ghost" id="adv-m-copy">העתקת ההסבר ללקוח</button>` : ""}<button class="btn ghost" id="adv-m-close">סגירה</button></div>
   </div>`;
   document.body.appendChild(back);
   const val = (i) => back.querySelector(i)?.value ?? "";
   const collect = () => {
+    c.currentRatePct = val("#adv-m-rate"); c.forecastRevenue = val("#adv-m-fc");
     c.manualBase = val("#adv-m-brev").trim() ? { revenue: val("#adv-m-brev"), expenses: val("#adv-m-bexp") } : undefined;
     if (back.querySelector("#adv-m-salary")) { c.salary = val("#adv-m-salary"); c.creditPoints = val("#adv-m-points"); }
     c.fixed = back.querySelector("#adv-m-fixed").checked; c.largeAsset = back.querySelector("#adv-m-asset").checked;
@@ -2128,18 +2144,65 @@ function advWire() {
   });
 }
 
-// שורות למייל השבועי של המשרד: מועדי בדיקה שהגיעו, ולקוחות שממתינים להחלטה
+// שורות למייל השבועי של המשרד: מה צריך לעשות, עם שמות הלקוחות
 advOP.advanceDigest = () => {
+  const clients = advOP.getClients();
+  if (!clients.length) return [];
   const lines = advStore().settings.schedule.filter((it) => advScheduleStatus(it).due)
     .map((it) => `הגיע מועד ${it.key === "annual" ? "הבדיקה השנתית" : "בדיקת אמצע השנה"} (${String(it.day).padStart(2, "0")}/${String(it.month).padStart(2, "0")}). להריץ בלשונית מקדמות.`);
-  const counts = { raise: 0, lower: 0, review: 0 };
-  for (const cl of advOP.getClients()) { const r = advRow(cl); if (r.status === "ok" && r.result.recommendation in counts) counts[r.result.recommendation]++; }
-  if (counts.raise) lines.push(`${counts.raise} לקוחות שמומלץ להעלות להם מקדמה.`);
-  if (counts.lower) lines.push(`${counts.lower} לקוחות שמומלץ להוריד להם מקדמה (לבדוק לפני הגשה).`);
-  if (counts.review) lines.push(`${counts.review} לקוחות מסומנים "לבדוק".`);
+  const groups = { raise: [], lower: [], review: [] };
+  for (const cl of clients) {
+    const r = advRow(cl);
+    if (r.status !== "ok" || !(r.result.recommendation in groups)) continue;
+    const x = r.result;
+    groups[x.recommendation].push(`${cl.name} (${pct(x.currentRatePct)} ← ${pct(x.proposedRatePct ?? x.newRatePct)})`);
+  }
+  if (groups.raise.length) lines.push(`להעלות מקדמה: ${groups.raise.join(", ")}.`);
+  if (groups.lower.length) lines.push(`להוריד מקדמה, אחרי בדיקה: ${groups.lower.join(", ")}.`);
+  if (groups.review.length) lines.push(`לבדוק לפני החלטה: ${groups.review.join(", ")}.`);
   return lines;
 };
 
+// הסבר החישוב בלשונית העזרה. הדוגמה מחושבת במנוע עצמו, כך שהמספרים תמיד תואמים
+function advHelp() {
+  const help = document.getElementById("p-help");
+  if (!help || help.querySelector("#adv-help")) return;
+  const ex = calculateClient({ clientId: "ex", name: "דוגמה", kind: "individual", currentRatePct: 5.6,
+    base: { year: 2025, revenue: 400000, expenses: 200000 }, forecastYear: 2026, forecastRevenue: 600000 });
+  const st = (label) => ex.steps.find((x) => x.label === label)?.formula ?? "";
+  const card = document.createElement("article");
+  card.className = "card"; card.id = "adv-help";
+  card.innerHTML = `<h2>מקדמות: איך מחושבת ההמלצה</h2>
+  <p>הרעיון: פקיד השומה כבר קבע ללקוח שיעור מקדמה לפי השומה שלו, והשיעור הזה כולל את כל מה ש-SUMIT לא רואה: פחת, הוצאות שאינן מוכרות, נקודות זיכוי והפקדות. לכן המערכת לומדת מהשיעור הנוכחי "סכום התאמה" ללקוח, ומפעילה אותו על התחזית לשנה החדשה.</p>
+  <ol class="steps">
+    <li><span class="n">1</span><div><b>רווח לפי SUMIT בשנה שהסתיימה</b><div class="sub">הכנסות פחות הוצאות, כמו שהן ב-SUMIT, בלי מע"מ ובלי התאמות למס.</div></div></li>
+    <li><span class="n">2</span><div><b>המס שפקיד השומה מצפה לו</b><div class="sub">השיעור הנוכחי כפול ההכנסות של אותה שנה.</div></div></li>
+    <li><span class="n">3</span><div><b>הכנסה חייבת לפי השומה</b><div class="sub">המערכת מחשבת לאחור לפי מדרגות המס (בחברה: חלקי 23%) איזו הכנסה חייבת יוצרת את המס הזה.</div></div></li>
+    <li><span class="n">4</span><div><b>סכום ההתאמה (ה"ת)</b><div class="sub">ההפרש בין ההכנסה החייבת לבין הרווח לפי SUMIT. זה כל מה שהשומה מוסיפה או מורידה.</div></div></li>
+    <li><span class="n">5</span><div><b>התחזית</b><div class="sub">ההכנסה הצפויה, פחות הוצאות לפי היחס ב-SUMIT, ועוד סכום ההתאמה, נותנים את ההכנסה החייבת הצפויה. ממנה מחשבים מס לפי המדרגות של השנה, ומחלקים בהכנסה הצפויה. השיעור מעוגל כלפי מעלה לעשירית האחוז.</div></div></li>
+    <li><span class="n">6</span><div><b>ההמלצה</b><div class="sub">להעלות: כשהשיעור החדש גבוה בנקודת אחוז או יותר, או כשהחוב הצפוי עולה על 5,000 ₪. להוריד: רק אחרי מקדם ביטחון של 10%, כשהירידה היא נקודת אחוז לפחות והעודף עולה על 5,000 ₪, ותמיד לבדוק לפני הגשה. "לבדוק": כשיש סיבה שהחישוב פחות בטוח, למשל קפיצה במחזור או לקוח בלי שנת בסיס.</div></div></li>
+  </ol>
+  <h3>דוגמה</h3>
+  <p class="sub">עצמאי, שיעור נוכחי 5.6%. ב-2025: הכנסות 400,000 ₪ והוצאות 200,000 ₪. ההכנסה הצפויה ל-2026: 600,000 ₪.</p>
+  <dl class="kv">
+    <dt>רווח לפי SUMIT</dt><dd>${advEsc(st("רווח לפי SUMIT"))}</dd>
+    <dt>מס לפי השיעור הנוכחי</dt><dd>${advEsc(st("מס בפועל לפי השיעור"))}</dd>
+    <dt>הכנסה חייבת לפי השומה</dt><dd>${advEsc(st("הכנסה חייבת לפי השומה"))}</dd>
+    <dt>סכום התאמה</dt><dd>${advEsc(st('סכום התאמה (ה"ת)'))}</dd>
+    <dt>הוצאות צפויות</dt><dd>${advEsc(st("הוצאות צפויות"))}</dd>
+    <dt>הכנסה חייבת צפויה</dt><dd>${advEsc(st("הכנסה חייבת צפויה"))}</dd>
+    <dt>מס צפוי</dt><dd>${advEsc(st("מס צפוי"))}</dd>
+    <dt>שיעור חדש</dt><dd>${advEsc(st("שיעור לפני עיגול"))}, ${advEsc(st("שיעור חדש"))}</dd>
+    <dt>ההמלצה</dt><dd>${advEsc(ex.reasonHe)}</dd>
+  </dl>
+  <p class="sub">בכל לקוח, לחיצה על השם בלשונית "מקדמות" מציגה את אותו תחשיב עם המספרים שלו, ואת המקור של כל מספר.</p>`;
+  const faq = [...help.querySelectorAll(".card, article, section > div")].find((el) => /שאלות נפוצות/.test(el.textContent || ""));
+  if (faq) faq.before(card); else help.appendChild(card);
+  const old = [...help.querySelectorAll("details")].find((d) => /ומה עם המקדמות/.test(d.querySelector("summary")?.textContent || ""));
+  if (old) old.querySelector("p").textContent = "בלשונית \"מקדמות\": לכל לקוח מחברים SUMIT (או מזינים נתונים), מזינים שיעור נוכחי והכנסה צפויה, והמערכת ממליצה. ההסבר המלא של החישוב נמצא בכרטיס \"מקדמות: איך מחושבת ההמלצה\" למעלה.";
+}
+
+advHelp();
 advRender();
 advWire();
 advRefreshConnected().then(advMigrateKeys).then(advRender);
