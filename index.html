@@ -1,0 +1,1905 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>משרד – פיילוט ניכוי במקור ומקדמות</title>
+<style>:root {
+  --bg: #f3f5f7; --surface: #ffffff; --fg: #1b2530; --muted: #5b6876; --line: #dde3ea;
+  --accent: #1d4f91; --accent-soft: #e6eef9;
+  --red: #b42318; --red-soft: #fdecea; --amber: #a15c00; --amber-soft: #fff3df;
+  --green: #1f7a4d; --green-soft: #e6f4ec; --gray-soft: #eceff3;
+  --display: "Rubik", "Arial Hebrew", Arial, sans-serif;
+  --body: "Assistant", "Segoe UI", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #11161c; --surface: #1a2129; --fg: #e6ebf0; --muted: #9aa7b4; --line: #2c3540;
+  --accent: #7fb0f0; --accent-soft: #1d2c40; --red: #f2877c; --red-soft: #3a1d1b;
+  --amber: #f0b45c; --amber-soft: #3a2b14; --green: #6fd09d; --green-soft: #16301f; --gray-soft: #242c35; color-scheme: dark } }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.app { direction: rtl; text-align: right; padding: 20px 16px 48px; max-width: 1240px; margin: 0 auto; display: grid; gap: 18px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; }
+h1 { font-size: 22px; } h2 { font-size: 18px; } h3 { font-size: 15px; }
+p { margin: 0; }
+.muted, .sub { color: var(--muted); } .sub { font-size: 12.5px; }
+.note { background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+.warn { background: var(--amber-soft); color: var(--fg); border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.stamp { width: 36px; height: 36px; border: 2px solid var(--accent); border-radius: 50%; display: grid; place-items: center; color: var(--accent); font-family: var(--display); font-weight: 700; font-size: 13px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line); }
+.tab { font: inherit; font-weight: 600; background: none; border: 0; padding: 10px 14px; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.panel { display: grid; gap: 16px; }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.chip-card { border-radius: 10px; padding: 10px 14px; display: grid; gap: 2px; border: 1px solid var(--line); background: var(--surface); text-align: right; font: inherit; color: inherit; cursor: pointer; }
+.chip-card b { font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums; }
+.chip-card.red b { color: var(--red); } .chip-card.amber b { color: var(--amber); } .chip-card.blue b { color: var(--accent); }
+.chip-card.green b { color: var(--green); } .chip-card.gray b { color: var(--muted); }
+.chip-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; justify-content: space-between; }
+.btn { font: inherit; font-weight: 700; border-radius: 8px; padding: 8px 16px; border: 1px solid var(--accent); background: var(--accent); color: var(--surface); cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.btn.danger { border-color: var(--red); background: transparent; color: var(--red); }
+.btn:disabled { opacity: .5; cursor: default; }
+input, select { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); max-width: 100%; }
+.field { display: grid; gap: 4px; } .field label { font-weight: 600; font-size: 14px; }
+.ltr { direction: ltr; unicode-bidi: plaintext; text-align: right; }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; min-width: 980px; }
+th, td { padding: 9px 10px; text-align: right; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 13px; color: var(--muted); font-weight: 600; background: var(--gray-soft); }
+td.num { font-variant-numeric: tabular-nums; }
+.empty td { text-align: center; color: var(--muted); padding: 28px; }
+.pill { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.pill.red { background: var(--red-soft); color: var(--red); } .pill.amber { background: var(--amber-soft); color: var(--amber); }
+.pill.blue { background: var(--accent-soft); color: var(--accent); } .pill.green { background: var(--green-soft); color: var(--green); }
+.pill.gray { background: var(--gray-soft); color: var(--muted); }
+tr.red td:first-child { box-shadow: inset -4px 0 0 var(--red); } tr.amber td:first-child { box-shadow: inset -4px 0 0 var(--amber); }
+tr.blue td:first-child { box-shadow: inset -4px 0 0 var(--accent); }
+tr.fresh td { background: var(--green-soft); }
+.was { font-size: 12px; color: var(--muted); text-decoration: line-through; }
+.linkname { font: inherit; font-weight: 700; color: var(--fg); background: none; border: 0; padding: 0; cursor: pointer; text-align: right; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.fh { font: inherit; font-weight: 600; color: inherit; background: none; border: 0; padding: 2px 4px; margin: -2px -4px; border-radius: 6px; cursor: pointer; }
+.fh.on { color: var(--accent); background: var(--accent-soft); }
+.pop { position: fixed; z-index: 15; direction: rtl; text-align: right; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgb(0 0 0 / .18); padding: 12px; display: grid; gap: 8px; min-width: 200px; max-height: 60vh; overflow: auto; }
+.pop label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.pop .row { display: flex; gap: 8px; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; }
+.pop .link { font: inherit; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font-size: 13px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.steps .n { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; } .kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.mail { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; max-width: 720px; padding: 18px; display: grid; gap: 12px; }
+.mail ul { margin: 0; padding-right: 18px; padding-left: 0; display: grid; gap: 6px; }
+.modal-back { position: fixed; inset: 0; background: rgb(0 0 0 / .45); display: grid; place-items: center; padding: 16px; z-index: 20; }
+.modal { direction: rtl; text-align: right; background: var(--surface); color: var(--fg); border-radius: 12px; padding: 20px; width: min(520px, 100%); display: grid; gap: 12px; max-height: 90vh; overflow: auto; }
+.modal .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.radio { display: flex; gap: 8px; align-items: flex-start; }
+.help details { border-top: 1px solid var(--line); padding: 10px 0; }
+.help details:first-of-type { border-top: 0; }
+.help summary { cursor: pointer; font-weight: 700; }
+.help details p { margin-top: 6px; color: var(--muted); max-width: 75ch; }
+.help .kv { grid-template-columns: auto 1fr; align-items: center; }
+.ext-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="stamp">נ"מ</div>
+      <div>
+        <h1>מעקב אישורים ומקדמות</h1>
+        <div class="sub" id="office-line"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="sub">גרסת פיילוט</span>
+      <span class="sub" id="user-line" hidden><span id="me"></span> · <span id="sync"></span> · <button class="btn ghost small" id="change-pw">שינוי סיסמה</button> <button class="btn ghost small" id="logout">יציאה</button></span>
+      <button class="btn ghost small" id="open-help">עזרה ושאלות נפוצות</button>
+    </div>
+  </header>
+  <div class="card" id="pw-box" hidden style="max-width:420px">
+    <div class="field"><label for="pw-new">סיסמה חדשה</label><input id="pw-new" type="password" autocomplete="new-password" minlength="8"></div>
+    <div><button class="btn small" id="pw-save">שמור סיסמה</button> <span class="sub" id="pw-msg"></span></div>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-panel="p-clients">ניכוי במקור: לקוחות</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="p-update">עדכון מרשות המסים</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="p-mail">המייל השבועי</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="p-advance">מקדמות</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="p-settings">הגדרות ולקוחות</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="p-help">עזרה</button>
+  </nav>
+
+  <section class="panel" id="p-clients">
+    <div class="note" id="first-steps" hidden>כדי להתחיל: בלשונית "הגדרות ולקוחות" מעלים את רשימת הלקוחות וממלאים את תיק הניכויים. אחר כך, בלשונית "עדכון מרשות המסים", מורידים את הקובץ לרשות המסים ומעלים חזרה את התשובה.</div>
+    <div class="summary" id="summary"></div>
+    <div class="toolbar">
+      <div class="field" style="flex:1 1 260px;max-width:380px">
+        <label for="q" class="sub">חיפוש לקוח</label>
+        <input id="q" type="search" placeholder="שם, ת&quot;ז או ח&quot;פ">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost small" id="clear-f" hidden>נקה את כל הסינונים</button>
+        <button class="btn ghost small" id="export-table">ייצוא ל-Excel</button>
+      </div>
+    </div>
+    <div class="sub" id="last-run"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th><button class="fh" data-col="type">לקוח ▾</button></th>
+          <th><button class="fh" data-col="id">ת"ז / ח"פ ▾</button></th>
+          <th><button class="fh" data-col="rate">ניכוי לשירותים ▾</button></th>
+          <th><button class="fh" data-col="when">ניכוי בתוקף עד ▾</button></th>
+          <th><button class="fh" data-col="books">ניהול ספרים עד ▾</button></th>
+          <th><button class="fh" data-col="status">מצב ▾</button></th>
+          <th><button class="fh" data-col="note">הערות ▾</button></th>
+          <th><button class="fh" data-col="told">הודעה ללקוח ▾</button></th>
+          <th>פעולה</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="p-update" hidden>
+    <div class="cards">
+      <article class="card">
+        <h2>עדכון חצי אוטומטי</h2>
+        <ol class="steps">
+          <li><span class="n">1</span><div><b>מורידים את הקובץ לרשות המסים</b>
+            <div class="sub" id="build-hint"></div>
+            <div style="margin-top:6px"><button class="btn ghost small" id="download-input">הורד קובץ לרשות המסים</button></div></div></li>
+          <li><span class="n">2</span><div><b>מעלים אותו באתר רשות המסים</b>
+            <div class="sub">נכנסים עם תיק הניכויים של המשרד ו-6 הספרות האחרונות מהשובר שבתחילת פנקס הניכויים, מעלים את הקובץ, ומורידים את שני הקבצים שחוזרים: Takin ו-shagui. רשות המסים ממליצה בין 13:00 ל-8:00.</div>
+            <a href="https://secapp.taxes.gov.il/gmm1000/firstPage.aspx" target="_blank" rel="noopener">פתח את מערכת 1000</a></div></li>
+          <li><span class="n">3</span><div><b>מעלים לכאן את שני הקבצים שחזרו</b>
+            <div class="field" style="margin-top:6px"><label for="f-valid">קובץ התקינים (Takin)</label><input id="f-valid" type="file" multiple></div>
+            <div class="field"><label for="f-errors">קובץ השגיאות (shagui)</label><input id="f-errors" type="file" multiple></div>
+            <div style="margin-top:8px"><button class="btn" id="load-results">עדכן את הלקוחות</button></div>
+            <div class="sub">כשיש יותר מ-1,000 לקוחות, בוחרים את כל הקבצים יחד, לפי הסדר של קובצי הקלט.</div></div></li>
+        </ol>
+      </article>
+      <article class="card">
+        <h2>תוצאת העדכון האחרון</h2>
+        <div id="run-result" class="sub">עוד לא נעשה עדכון.</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel" id="p-mail" hidden>
+    <p class="muted">כך ייראה המייל השבועי למשרד. בגרסת הפיילוט הוא לא נשלח לבד. אפשר להעתיק אותו ולשלוח ידנית.</p>
+    <div class="mail" id="mail"></div>
+    <div><button class="btn ghost" id="copy-mail">העתק את המייל</button> <span class="sub" id="copy-ok"></span></div>
+  </section>
+
+  <section class="panel" id="p-advance" hidden>
+    <div class="note" id="advance-placeholder">שירות המקדמות ייכנס ללשונית הזו.</div>
+  </section>
+
+  <section class="panel" id="p-settings" hidden>
+    <div class="cards">
+      <article class="card">
+        <h2>המשרד</h2>
+        <div class="field"><label for="s-office">שם המשרד</label><input id="s-office"></div>
+        <div class="field"><label for="s-tik">תיק הניכויים של המשרד</label><input id="s-tik" class="ltr" inputmode="numeric" maxlength="9" placeholder="9 ספרות, מתחיל ב-9"></div>
+        <p class="sub">את 6 הספרות מהשובר לא שומרים כאן. מקלידים אותן רק באתר רשות המסים.</p>
+      </article>
+      <article class="card">
+        <h2>רשימת הלקוחות</h2>
+        <p class="sub">קובץ CSV ב-UTF-8 עם העמודות: שם, סוג (עצמאי / חברה / שותפות), ת"ז או ח"פ. אפשר גם: מספר תיק, מייל. העלאה חוזרת מעדכנת לפי ת"ז או ח"פ.</p>
+        <div><button class="btn ghost small" id="template">הורד תבנית</button></div>
+        <div class="field"><label for="f-clients">העלאת קובץ לקוחות</label><input id="f-clients" type="file" accept=".csv,text/csv"></div>
+        <div id="import-result" class="sub"></div>
+      </article>
+      <article class="card">
+        <h2>התראות</h2>
+        <div class="field"><label for="s-which">על אילו אישורים להתריע</label>
+          <select id="s-which"><option value="both">ניכוי במקור וניהול ספרים</option><option value="withholding">רק ניכוי במקור</option><option value="books">רק ניהול ספרים</option></select></div>
+        <div class="field"><label for="s-days">להתחיל להתריע לפני שהאישור פג</label>
+          <select id="s-days"><option value="30">30 יום</option><option value="45">45 יום</option><option value="60">60 יום</option></select></div>
+        <h3>הארכה כללית בצו</h3>
+        <p class="sub">למשל: אישורים שפגו ב-31/03/2026 הוארכו עד 31/05/2026.</p>
+        <div id="ext-list"></div>
+        <div class="ext-row"><input id="ext-old" type="date" aria-label="תאריך סיום מקורי"> ← <input id="ext-new" type="date" aria-label="תאריך חדש"> <button class="btn ghost small" id="ext-add">הוסף</button></div>
+      </article>
+      <article class="card">
+        <h2>גיבוי</h2>
+        <p class="sub">הנתונים נשמרים רק בדפדפן הזה. כדאי לשמור גיבוי מדי פעם.</p>
+        <div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="backup">שמור גיבוי</button>
+          <label class="btn ghost small" for="f-restore">שחזר מגיבוי</label><input id="f-restore" type="file" accept=".json" hidden>
+          <button class="btn danger small" id="wipe">מחק את כל הנתונים</button></div>
+        <div id="wipe-confirm" hidden class="warn">למחוק את כל הלקוחות והתוצאות מהדפדפן הזה? <button class="btn danger small" id="wipe-yes">כן, למחוק</button> <button class="btn ghost small" id="wipe-no">ביטול</button></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel help" id="p-help" hidden>
+    <div class="cards">
+      <article class="card">
+        <h2>איך זה עובד, בארבעה צעדים</h2>
+        <ol class="steps">
+          <li><span class="n">1</span><div><b>מעלים את רשימת הלקוחות</b><div class="sub">בלשונית "הגדרות ולקוחות". מספיקים שם, סוג (עצמאי, חברה או שותפות) ות"ז או ח"פ. יש שם תבנית להורדה.</div></div></li>
+          <li><span class="n">2</span><div><b>מורידים קובץ ומעלים אותו לרשות המסים</b><div class="sub">בלשונית "עדכון מרשות המסים". מעלים את הקובץ למערכת 1000 של רשות המסים, ומקבלים בחזרה שני קבצים.</div></div></li>
+          <li><span class="n">3</span><div><b>מחזירים לכאן את שני הקבצים</b><div class="sub">המערכת מעדכנת לכל לקוח את אחוז הניכוי, את תאריך התפוגה ואת אישור ניהול הספרים.</div></div></li>
+          <li><span class="n">4</span><div><b>מטפלים במי שמסומן</b><div class="sub">אדום הוא דחוף, וכתום יפוג בקרוב. מסמנים "בטיפול" או "טופל", ואפשר לעדכן את הלקוח שאתם מחדשים לו את האישור.</div></div></li>
+        </ol>
+      </article>
+      <article class="card">
+        <h2>מה המשמעות של כל מצב</h2>
+        <dl class="kv">
+          <dt><span class="pill green">תקין</span></dt><dd>האישור בתוקף ליותר מחודש.</dd>
+          <dt><span class="pill amber">לחידוש החודש</span></dt><dd>האישור יפוג בחודש הקרוב. אפשר לשנות ל-45 או 60 יום בהגדרות.</dd>
+          <dt><span class="pill red">פג תוקף</span></dt><dd>התאריך עבר, וברשות המסים לא מופיע אישור חדש.</dd>
+          <dt><span class="pill red">אין אישור, לבדוק בתיק</span></dt><dd>רשות המסים לא מחזירה אישור ללקוח. בדרך כלל יש ליקוי בתיק, כמו דוח שלא הוגש.</dd>
+          <dt><span class="pill blue">בטיפול</span></dt><dd>המשרד סימן שהוא מטפל. התזכורות ממשיכות.</dd>
+          <dt><span class="pill blue">טופל, ממתין לרשות המסים</span></dt><dd>המשרד סימן שהאישור חודש. בעדכון הבא נבדוק שהאישור החדש באמת מופיע ברשות המסים.</dd>
+          <dt><span class="pill gray">מספר שגוי</span></dt><dd>רשות המסים לא מכירה את המספר. בודקים את הת"ז או הח"פ ברשימת הלקוחות.</dd>
+          <dt><span class="pill gray">לא התקבלה תשובה</span></dt><dd>הלקוח נשלח, אבל לא חזר באף אחד מהקבצים.</dd>
+        </dl>
+      </article>
+    </div>
+    <article class="card">
+      <h2>שאלות נפוצות</h2>
+      <details><summary>מאיפה מגיעים הנתונים?</summary><p>ממערכת 1000 של רשות המסים. זה שירות רשמי וחינמי שמחזיר לכל לקוח את פרטי אישור הניכוי במקור ואת אישור ניהול הספרים.</p></details>
+      <details><summary>מה צריך כדי להתחיל?</summary><p>שלושה דברים: רשימת לקוחות, מספר תיק הניכויים של המשרד, ו-6 הספרות האחרונות מהשובר שבתחילת פנקס הניכויים. את 6 הספרות לא שומרים במערכת. מקלידים אותן רק באתר של רשות המסים.</p></details>
+      <details><summary>איך מכינים את רשימת הלקוחות מ-SUMIT או מתוכנה אחרת?</summary><p>מייצאים מהתוכנה רשימת לקוחות ל-Excel, ושומרים בפורמט CSV. צריך עמודות בשם "שם", "סוג" ו"ת"ז או ח"פ". מותר להוסיף עמודות "מספר תיק" ו"מייל". אפשר גם להוריד את התבנית ולהעתיק אליה. העלאה חוזרת מעדכנת לקוחות קיימים לפי הת"ז או הח"פ, ולא יוצרת כפילויות.</p></details>
+      <details><summary>למה צריך להעלות קובץ לאתר רשות המסים בעצמי?</summary><p>בגרסת הפיילוט זה נעשה בדרך החצי אוטומטית, כדי לבדוק קודם מה רשות המסים מחזירה. זה לוקח כדקה. בהמשך המערכת תעשה את זה לבד.</p></details>
+      <details><summary>כל כמה זמן לעדכן?</summary><p>מומלץ פעם בחודש. כשיש לקוחות שהאישור שלהם יפוג בקרוב, מומלץ פעם בשבוע. רשות המסים ממליצה להשתמש במערכת 1000 בין 13:00 ל-8:00 בבוקר.</p></details>
+      <details><summary>מה ההבדל בין "אין נתונים" ל"פטור מלא"?</summary><p>"פטור מלא" אומר שלא מנכים מס בכלל. "אין נתונים" אומר שרשות המסים לא מסרה שיעור לסוג התשלום הזה. זה לא אפס אחוז. לחיצה על שם הלקוח מציגה את ששת סוגי התשלום.</p></details>
+      <details><summary>מה ההבדל בין "בטיפול" ל"טופל"?</summary><p>"בטיפול" אומר שהתחלתם לטפל, והתזכורות ממשיכות. "טופל" אומר שלדעתכם האישור כבר חודש. בעדכון הבא המערכת בודקת את זה מול רשות המסים. אם האישור החדש מופיע, הלקוח הופך לירוק והתזכורות נעצרות. אם לא, הוא נשאר "ממתין", ואחרי 14 יום הוא מסומן כדחוף.</p></details>
+      <details><summary>מה קורה כשמסמנים "לעדכן שאנחנו מחדשים"?</summary><p>בגרסת הפיילוט נרשם התאריך, אבל המייל ללקוח עוד לא נשלח לבד. אם האישור לא התחדש תוך 14 יום מהסימון, הלקוח מסומן כדחוף, כדי שההבטחה ללקוח לא תישכח.</p></details>
+      <details><summary>מה זה "שותפות וירטואלית"?</summary><p>זה מצב של איחוד עוסקים במע"מ. רשות המסים מבקשת לבדוק כל שותף בנפרד, לפי תיק המס שלו.</p></details>
+      <details><summary>רוב האישורים פגים בסוף מרץ. האם המערכת תציף אותי בהתראות?</summary><p>לא. האישורים החדשים יוצאים כבר בינואר, ולכן לקוח תקין מתעדכן לבד ויוצא מהרשימה. מי שנשאר ברשימה במרץ הוא לקוח שבאמת לא קיבל אישור. כשרשות המסים מאריכה אישורים בצו, מוסיפים את ההארכה בהגדרות.</p></details>
+      <details><summary>איפה נשמרים הנתונים?</summary><p>בגרסת הפיילוט הנתונים נשמרים בדפדפן שבו עובדים. בהגדרות יש כפתור "שמור גיבוי", וכדאי ללחוץ עליו מדי פעם.</p></details>
+      <details><summary>ומה עם המקדמות?</summary><p>שירות המקדמות ייכנס ללשונית "מקדמות" במוצר הזה, עם אותה רשימת לקוחות.</p></details>
+    </article>
+  </section>
+</div>
+
+<div class="modal-back" id="login" hidden style="background:var(--bg)">
+  <form class="modal" id="login-form" style="width:min(400px,100%)">
+    <div class="brand"><div class="stamp">נ"מ</div><h2>מעקב אישורים ומקדמות</h2></div>
+    <div class="field"><label for="login-email">מייל</label><input id="login-email" type="email" autocomplete="username" required class="ltr"></div>
+    <div class="field"><label for="login-pw">סיסמה</label><input id="login-pw" type="password" autocomplete="current-password" required></div>
+    <button class="btn" type="submit" id="login-go">כניסה</button>
+    <p class="sub" id="login-msg"></p>
+    <p class="sub">שכחתם סיסמה? פנו לצחי, והוא יקבע לכם סיסמה חדשה.</p>
+  </form>
+</div>
+
+<div class="modal-back" id="welcome" hidden>
+  <div class="modal" role="dialog" aria-labelledby="w-title" style="width:min(600px,100%)">
+    <h2 id="w-title">ברוכים הבאים</h2>
+    <p>המערכת עוקבת אחרי אישורי ניכוי מס במקור ואישורי ניהול ספרים של הלקוחות שלכם. היא מראה לכם מי צריך חידוש, לפני שהלקוח מגלה את זה בעצמו.</p>
+    <ol class="steps">
+      <li><span class="n">1</span><div><b>מעלים רשימת לקוחות</b><div class="sub">שם, סוג, ות"ז או ח"פ. יש תבנית מוכנה.</div></div></li>
+      <li><span class="n">2</span><div><b>מעדכנים מרשות המסים</b><div class="sub">מורידים קובץ, מעלים אותו למערכת 1000 של רשות המסים, ומחזירים לכאן את התשובה.</div></div></li>
+      <li><span class="n">3</span><div><b>מטפלים במי שמסומן</b><div class="sub">אדום הוא דחוף, וכתום יפוג בקרוב. המייל השבועי מרכז את כל מה שצריך טיפול.</div></div></li>
+    </ol>
+    <p class="sub">אפשר לחזור להסבר הזה ולשאלות הנפוצות בכל שלב, בכפתור "עזרה ושאלות נפוצות".</p>
+    <label class="sub"><input type="checkbox" id="w-hide" checked> לא להציג את המסך הזה שוב</label>
+    <div class="row"><button class="btn" id="w-start">בואו נתחיל</button><button class="btn ghost" id="w-help">לשאלות הנפוצות</button></div>
+  </div>
+</div>
+
+<div class="modal-back" id="mark-modal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="m-title">
+    <h2 id="m-title">סימון לקוח</h2>
+    <p id="m-client" class="muted"></p>
+    <label class="radio"><input type="radio" name="st" id="st-prog" checked><span><b>בטיפול</b><br><span class="sub">התחלנו לטפל. התזכורות ממשיכות.</span></span></label>
+    <label class="radio"><input type="radio" name="st" id="st-done"><span><b>טופל, יש אישור חדש</b><br><span class="sub">בעדכון הבא מרשות המסים נבדוק שהאישור החדש מופיע. עד אז הלקוח מסומן "בודק מול רשות המסים".</span></span></label>
+    <label class="radio"><input type="radio" name="st" id="st-clear"><span><b>ביטול הסימון</b></span></label>
+    <div class="row"><button class="btn" id="m-save">שמור</button><button class="btn ghost" id="m-cancel">ביטול</button></div>
+  </div>
+</div>
+
+<div class="modal-back" id="detail" hidden>
+  <div class="modal" role="dialog" aria-label="פרטי לקוח">
+    <div id="d-body" style="display:grid;gap:10px"></div>
+    <div class="row"><button class="btn ghost" id="d-close">סגור</button></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>window.OP_CONFIG = {"url":"https://ycetgapmqkmrnrgcniqh.supabase.co","anon":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljZXRnYXBtcWttcm5yZ2NuaXFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4OTMzMDAsImV4cCI6MjEwODQ2OTMwMH0.tYoDfjq722pPcY08eedHQysyMd4eFuFBuktpuffqT-M"};</script>
+<script>"use strict";
+// ---- engine/fixed.ts
+// Helpers for the fixed-width records of System 1000 files.
+
+function padNum(value                    , width        )         {
+  const v = (value ?? "").trim();
+  if (v === "") return "0".repeat(width);
+  if (!/^\d+$/.test(v)) throw new Error(`Not a number: "${v}"`);
+  if (v.length > width) throw new Error(`"${v}" is longer than ${width} digits`);
+  return v.padStart(width, "0");
+}
+
+function padAlpha(value        , width        )         {
+  if (value.length > width) throw new Error(`"${value}" is longer than ${width} characters`);
+  return value.padEnd(width, " ");
+}
+
+// Never throws on a short line: fields missing at the end read as "".
+function slice(line        , start        , width        )         {
+  return line.slice(start, start + width);
+}
+
+// ---- engine/input-file.ts
+// Builds the System 1000 input file (sinuimMarechet1000.pdf, appendix 1a).
+                                         
+
+const MAX_PER_FILE = 1000;
+const CRLF = "\r\n";
+
+function isPartnership(entityId        )          {
+  return /^(530|540|550|557)/.test(entityId.trim());
+}
+
+function detailLine(c        )         {
+  const entity = padNum(c.entityId, 9);
+  const supplier = padAlpha(c.clientId, 15);
+  // Partnership: its number goes in the VAT file field; income tax file and entity stay empty.
+  if (isPartnership(c.entityId)) return "B" + supplier + padNum("", 9) + entity + padNum("", 9);
+  return "B" + supplier + padNum(c.incomeTaxFile, 9) + padNum("", 9) + entity;
+}
+
+function buildInputFiles(deductionsFile        , clients          )           {
+  if (!/^9\d{8}$/.test(deductionsFile)) throw new Error("Deductions file must be 9 digits starting with 9");
+  const files           = [];
+  for (let i = 0; i < clients.length; i += MAX_PER_FILE) {
+    const chunk = clients.slice(i, i + MAX_PER_FILE);
+    const rows = ["A" + deductionsFile, ...chunk.map(detailLine), "Z" + deductionsFile + padNum(String(chunk.length), 4)];
+    files.push(rows.join(CRLF) + CRLF);
+  }
+  return files;
+}
+
+// ---- engine/output-valid.ts
+// Reads the System 1000 "valid suppliers" file (Hadracha.pdf, appendix 2b, new format).
+                                       
+
+function decodeFile(bytes            )         {
+  let text        ;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    text = new TextDecoder("windows-1255").decode(bytes);
+  }
+  return text.replace(/^﻿/, "");
+}
+
+function isoIfValid(y        , m        , d        )                {
+  if (y < 2000 || y > 2099 || m < 1 || m > 12 || d < 1) return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+// The PDFs do not say the digit order; the file name pattern suggests YYYYMMDD, so it is tried first.
+function parseDate8(s        , warnings          )                {
+  const v = s.trim();
+  if (v === "" || /^0+$/.test(v)) return null;
+  if (/^\d{8}$/.test(v)) {
+    const ymd = isoIfValid(+v.slice(0, 4), +v.slice(4, 6), +v.slice(6, 8));
+    if (ymd) return ymd;
+    const dmy = isoIfValid(+v.slice(4, 8), +v.slice(2, 4), +v.slice(0, 2));
+    if (dmy) return dmy;
+  }
+  warnings.push(`Unreadable date "${v}"`);
+  return null;
+}
+
+function parseRate(code        )       {
+  const v = code.trim();
+  if (v === "" || v === "00") return { kind: "none" };
+  if (v === "99") return { kind: "exempt" };
+  const n = Number(v);
+  return Number.isInteger(n) ? { kind: "rate", percent: n } : { kind: "none" };
+}
+
+function splitLines(text        )           {
+  return text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim() !== "");
+}
+
+function parseSummary(line        )          {
+  return {
+    received: Number(slice(line, 10, 4)),
+    valid: Number(slice(line, 14, 4)),
+    wrong: Number(slice(line, 18, 4)),
+  };
+}
+
+function cert(line        , at        , warnings          )              {
+  const rawEnd = slice(line, at + 8, 8).trim();
+  const end = parseDate8(rawEnd, warnings);
+  return {
+    start: parseDate8(slice(line, at, 8), warnings),
+    end,
+    issued: parseDate8(slice(line, at + 16, 8), warnings),
+    endUnreadable: end === null && rawEnd !== "" && !/^0+$/.test(rawEnd),
+  };
+}
+
+function parseValidFile(text        )                          {
+  const records                = [];
+  const warnings           = [];
+  let summary                 = null;
+  let oldFormat = 0;
+  for (const line of splitLines(text)) {
+    if (line[0] === "Z") summary = parseSummary(line);
+    if (line[0] !== "B") continue;
+    if (line.length <= 151) oldFormat++;
+    const rateCodes = slice(line, 75, 10);
+    const rates = [0, 2, 4, 6, 8].map((i) => parseRate(rateCodes.slice(i, i + 2)));
+    rates.push(parseRate(slice(line, 149, 2)));
+    records.push({
+      clientId: slice(line, 1, 15).trim(),
+      nameAtAuthority: slice(line, 52, 22).trim(),
+      entityIdFound: slice(line, 140, 9).trim(),
+      hasBooksCert: slice(line, 74, 1) === "1",
+      booksFlag: slice(line, 74, 1),
+      rates,
+      withholding: cert(line, 85, warnings),
+      books: cert(line, 151, warnings),
+    });
+  }
+  if (oldFormat > 0) warnings.push(`${oldFormat} record(s) are in the old format, without books-certificate dates`);
+  return { records, summary, warnings };
+}
+
+// ---- engine/output-errors.ts
+// Reads the System 1000 "errors" file (Hadracha.pdf, appendix 2b).
+
+
+// 99 = "cannot get certificate details": treated as "no certificate", never as a wrong number (design 6.1).
+function errorKind(code        )            {
+  if (code === "99") return "no_certificate";
+  if (["02", "03", "04", "05", "06"].includes(code)) return "wrong_number";
+  if (code === "09") return "virtual_partnership";
+  return "unknown_error";
+}
+
+function parseErrorsFile(text        )                          {
+  const records                = [];
+  let summary                 = null;
+  for (const line of splitLines(text)) {
+    if (line[0] === "Z") summary = parseSummary(line);
+    if (line[0] !== "B") continue;
+    const code = slice(line, 34, 2);
+    records.push({
+      clientId: slice(line, 1, 15).trim(),
+      code,
+      description: slice(line, 36, 50).trim(),
+      kind: errorKind(code),
+    });
+  }
+  return { records, summary, warnings: [] };
+}
+
+// ---- engine/reconcile.ts
+// Combines what was sent with the two output files (design 5.4, "reading rules").
+                                         
+                                                                 
+                                                      
+
+                   
+                                                               
+                                                              
+                                                 
+
+                                                                                
+
+function reconcile(sent          , valid                         , errors                         )            {
+  const warnings = [...valid.warnings, ...errors.warnings];
+  let ok = true;
+  for (const [label, f] of [["valid", valid], ["errors", errors]]         ) {
+    if (!f.summary) {
+      ok = false;
+      warnings.push(`The ${label} file has no summary record`);
+    } else if (f.summary.received !== sent.length) {
+      ok = false;
+      warnings.push(`The ${label} file reports ${f.summary.received} received, but ${sent.length} were sent`);
+    }
+  }
+
+  const sentIds = new Set        ();
+  for (const c of sent) {
+    if (sentIds.has(c.clientId)) warnings.push(`Client ${c.clientId} was sent more than once`);
+    sentIds.add(c.clientId);
+  }
+
+  const found = new Map                     ();
+  for (const r of valid.records) {
+    if (!sentIds.has(r.clientId)) warnings.push(`Valid file returned unknown client ${r.clientId}`);
+    else found.set(r.clientId, r);
+  }
+  const failed = new Map                     ();
+  for (const r of errors.records) {
+    if (!sentIds.has(r.clientId)) warnings.push(`Errors file returned unknown client ${r.clientId}`);
+    else if (found.has(r.clientId)) warnings.push(`Client ${r.clientId} is in both files; the valid record is used`);
+    else failed.set(r.clientId, r);
+  }
+
+  const fetches          = [...sentIds].map((clientId)        => {
+    const record = found.get(clientId);
+    if (record) return { clientId, outcome: "found", record };
+    const error = failed.get(clientId);
+    if (error) return { clientId, outcome: "error", error };
+    return { clientId, outcome: "no_response" };
+  });
+  return { ok, fetches, warnings };
+}
+
+// ---- engine/status.ts
+// Client status, per design sections 6.1–6.3.
+                                            
+
+                                                                                                     
+                                                                                             
+
+const STATUS_LABEL                            = {
+  ok: "תקין",
+  renew_soon: "לחידוש החודש",
+  expired: "פג תוקף",
+  in_progress: "בטיפול",
+  checking: "בודק מול רשות המסים",
+  done_waiting: "טופל, ממתין לרשות המסים",
+  no_certificate: "אין אישור, לבדוק בתיק",
+  wrong_number: "מספר שגוי",
+  virtual_partnership: "שותפות וירטואלית",
+  no_response: "לא התקבלה תשובה",
+  unreadable: "לא ניתן לקרוא את התאריך",
+};
+
+                                                                   
+                                                                    
+
+                              
+                      
+                                        
+                    
+                        
+                              
+                
+                          
+                                            
+                                 
+ 
+
+                               
+                 
+                                                 
+                          
+                  
+ 
+
+const URGENT_AFTER_DAYS = 14;
+const DATED = new Set           (["renew_soon", "expired", "in_progress", "done_waiting"]);
+
+function daysBetween(from        , to        )         {
+  return Math.round((Date.parse(to + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 86_400_000);
+}
+
+function effectiveEnd(end        , ext                    )         {
+  return ext.find((e) => e.oldEnd === end)?.newEnd ?? end;
+}
+
+                                                                // 0 ok, 1 renew_soon, 2 expired, 3 missing
+
+function dateLevel(end               , i             )            {
+  if (end === null) return { level: 3, days: null };
+  const days = daysBetween(i.today, effectiveEnd(end, i.extensions));
+  if (days < 0) return { level: 2, days };
+  if (days <= i.alertDays) return { level: 1, days };
+  return { level: 0, days };
+}
+
+function base(i             )               {
+  const none = (key           )               => ({ key, which: null, daysLeft: null, urgent: false });
+  if (i.checkPending || i.fetch === null) return none("checking");
+  if (i.fetch.outcome === "no_response") return none("no_response");
+  if (i.fetch.outcome === "error") {
+    const k = i.fetch.error.kind;
+    return none(k === "no_certificate" ? "no_certificate" : k === "virtual_partnership" ? "virtual_partnership" : "wrong_number");
+  }
+  const rec = i.fetch.record;
+  const w = i.alertOn !== "books" ? dateLevel(rec.withholding.end, i) : null;
+  const b = i.alertOn !== "withholding" ? dateLevel(rec.books.end, i) : null;
+  // A date that was present but could not be read is not "no certificate".
+  if (rec.withholding.endUnreadable || (b?.level === 3 && rec.books.endUnreadable)) return none("unreadable");
+  // A found record without withholding dates means there is no withholding certificate.
+  if (w?.level === 3) return { key: "no_certificate", which: "withholding", daysLeft: null, urgent: false };
+  // Missing books dates (old file format, or no data) are not an alert.
+  const parts = [w && { which: "withholding"         , ...w }, b && b.level !== 3 ? { which: "books"         , ...b } : null]
+    .filter((p)                             => p !== null);
+  const worst = Math.max(0, ...parts.map((p) => p.level));
+  if (worst === 0) return { key: "ok", which: null, daysLeft: null, urgent: false };
+  const hit = parts.filter((p) => p.level === worst);
+  const daysLeft = Math.min(...hit.map((p) => p.days ?? -1));
+  return { key: worst === 2 ? "expired" : "renew_soon", which: hit.length === 2 ? "both" : hit[0].which, daysLeft, urgent: false };
+}
+
+function computeStatus(i             )               {
+  let s = base(i);
+  const gone = s.key === "expired" || s.key === "no_certificate"; // stays urgent even after a mark
+  const needsCare = gone || s.key === "renew_soon";
+  if (needsCare && i.mark?.state === "done") {
+    const end = i.fetch?.outcome === "found" ? i.fetch.record.withholding.end : null;
+    if (end === i.previousWithholdingEnd) s = { ...s, key: "done_waiting" };
+  } else if (needsCare && i.mark?.state === "in_progress") {
+    s = { ...s, key: "in_progress" };
+  }
+  const since = (d               ) => d !== null && daysBetween(d, i.today) >= URGENT_AFTER_DAYS;
+  const urgent =
+    gone ||
+    (s.key === "done_waiting" && since(i.mark?.at ?? null)) ||
+    (DATED.has(s.key) && since(i.clientToldAt));
+  return { ...s, urgent };
+}
+
+// ---- engine/digest.ts
+// Content of the weekly office email (design 6.3). Sending is not done here.
+                                         
+
+function formatDate(iso        )         {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function lineFor(name        , s              , end               , booksEnd               )         {
+  if (s.key === "no_certificate") return `${name}: אין אישור ניכוי ברשות המסים. כדאי לבדוק אם יש ליקויים בתיק.`;
+  const subject =
+    s.which === "books" ? "אישור ניהול הספרים פג" :
+    s.which === "both" ? "אישור הניכוי ואישור ניהול הספרים פגים" : "אישור הניכוי פג";
+  const date = s.which === "books" ? booksEnd : end;
+  if (s.which === null || date === null) return `${name}: ${STATUS_LABEL[s.key]}.`;
+  const days = s.daysLeft ?? 0;
+  const when = days < 0 ? `לפני ${-days} יום` : `בעוד ${days} יום`;
+  const tail = s.key === "done_waiting" ? " סומן טופל, וברשות המסים עדיין מופיע האישור הישן." : "";
+  return `${name}: ${subject} ב-${formatDate(date)}, ${when}.${tail}`;
+}
+
+function buildDigest(items                                                                                         )                {
+  const urgent               = [];
+  const soon               = [];
+  const inProgress               = [];
+  for (const { client, status, end, booksEnd } of items) {
+    const item = { clientId: client.clientId, name: client.name, status, line: lineFor(client.name, status, end, booksEnd) };
+    if (status.urgent) urgent.push(item);
+    else if (status.key === "renew_soon") soon.push(item);
+    else if (status.key === "in_progress" || status.key === "done_waiting") inProgress.push(item);
+  }
+  const total = urgent.length + soon.length + inProgress.length;
+  if (total === 0) return null;
+  const byDays = (a            , b            ) => (a.status.daysLeft ?? -Infinity) - (b.status.daysLeft ?? -Infinity);
+  return {
+    subject: total === 1 ? "לקוח אחד צריך טיפול באישורים מרשות המסים" : `${total} לקוחות צריכים טיפול באישורים מרשות המסים`,
+    urgent: urgent.sort(byDays),
+    soon: soon.sort(byDays),
+    inProgress: inProgress.sort(byDays),
+  };
+}
+
+// ---- pilot app (plain JS; the engine functions above are in the same scope)
+const STORE_KEY = "officePilot.v1";
+const $ = (id) => document.getElementById(id);
+const todayIso = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+
+function emptyState() {
+  return {
+    office: { name: "", deductionsFile: "" },
+    settings: { alertDays: 30, alertOn: "both", extensions: [] },
+    clients: [],      // Client[]
+    results: {},      // clientId -> { fetch, fetchedAt, previous: { rate, end } | null }
+    marks: {},        // clientId -> { state, at, prevEnd }
+    told: {},         // clientId -> ISO date
+    pending: {},      // clientId -> true (marked done, waiting for the next run)
+    lastRun: null,    // { at, ok, warnings, counts }
+    advance: {},      // reserved for the advance-payments module
+  };
+}
+// Two storage modes: the local file keeps everything in localStorage; the cloud site (window.OP_CONFIG)
+// signs in to Supabase and keeps one shared state per office, saved through op_save (optimistic versioning).
+const CLOUD = !!window.OP_CONFIG;
+let sb = null, officeId = null, version = 0, saveTimer = null, saving = Promise.resolve();
+let state = CLOUD ? emptyState() : loadLocal();
+const listeners = [];
+function loadLocal() {
+  try { return { ...emptyState(), ...JSON.parse(localStorage.getItem(STORE_KEY) || "{}") }; } catch { return emptyState(); }
+}
+const notify = () => listeners.forEach((f) => { try { f(state); } catch {} });
+function save() {
+  if (CLOUD) { clearTimeout(saveTimer); saveTimer = setTimeout(pushCloud, 500); setSync("שומר…"); }
+  else { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { alertBox("השמירה בדפדפן נכשלה: " + e.message); } }
+  notify();
+}
+function setSync(text) { const el = $("sync"); if (el) el.textContent = text; }
+function pushCloud() {
+  saving = saving.then(async () => {
+    const { data, error } = await sb.rpc("op_save", { o: officeId, d: state, expected: version });
+    if (!error) { version = data; setSync("נשמר"); return; }
+    if (/conflict/.test(error.message)) {
+      await pullCloud();
+      setSync("מישהו אחר במשרד עדכן בינתיים. הנתונים נטענו מחדש, ואת השינוי האחרון צריך לעשות שוב.");
+    } else setSync("השמירה נכשלה: " + error.message);
+  });
+  return saving;
+}
+async function pullCloud() {
+  const { data, error } = await sb.from("op_state").select("data, version").eq("office_id", officeId).maybeSingle();
+  if (error) throw error;
+  state = { ...emptyState(), ...(data ? data.data : {}) };
+  version = data ? data.version : 0;
+  renderAll(); notify();
+}
+function alertBox(msg) { $("run-result").innerHTML = `<div class="warn">${esc(msg)}</div>`; }
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// SUMIT access. In the cloud the key is kept encrypted on the server and every call goes through op-sumit;
+// in the local file (testing only) the key stays in this browser and calls go straight to SUMIT.
+async function sumitFn(body) {
+  const { data, error } = await sb.functions.invoke("op-sumit", { body: { officeId, ...body } });
+  if (error) {
+    let msg = error.message;
+    try { msg = (await error.context.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return data;
+}
+const localKeys = () => (state.secrets ??= {});
+
+// Shared API for the advance-payments tab (advance.js).
+window.OfficePilot = {
+  cloud: CLOUD,
+  getState: () => state,
+  getClients: () => state.clients,
+  save,
+  onChange: (f) => listeners.push(f),
+  panel: () => $("p-advance"),
+  async setSumitKey(clientId, companyId, apiKey) {
+    if (CLOUD) return sumitFn({ action: "setKey", clientId, companyId: String(companyId), apiKey });
+    localKeys()[clientId] = { companyId: String(companyId), apiKey }; save(); return { ok: true };
+  },
+  async deleteSumitKey(clientId) {
+    if (CLOUD) return sumitFn({ action: "deleteKey", clientId });
+    delete localKeys()[clientId]; save(); return { ok: true };
+  },
+  async sumitConnected() {
+    if (!CLOUD) return Object.keys(localKeys());
+    const { data, error } = await sb.rpc("op_sumit_connected", { o: officeId });
+    if (error) throw error;
+    return data || [];
+  },
+  async sumit(clientId, path, payload = {}) {
+    if (CLOUD) return sumitFn({ action: "call", clientId, path, payload });
+    const k = localKeys()[clientId];
+    if (!k) throw new Error("no SUMIT key for this client");
+    const r = await fetch("https://api.sumit.co.il" + path, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, Credentials: { CompanyID: Number(k.companyId), APIKey: k.apiKey } }),
+    });
+    return r.json();
+  },
+};
+
+// ---------- files
+function download(name, content, type) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+const readBytes = (file) => file.arrayBuffer().then((b) => new Uint8Array(b));
+
+function parseCsv(text) {
+  const rows = []; let row = [], field = "", quoted = false;
+  const src = text.replace(/^﻿/, "");
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (quoted) {
+      if (ch === '"' && src[i + 1] === '"') { field += '"'; i++; } else if (ch === '"') quoted = false; else field += ch;
+    } else if (ch === '"' && field === "") quoted = true; // Hebrew abbreviations (ח"פ) keep a bare " mid-field
+    else if (ch === "," || ch === "\t" || ch === ";") { row.push(field); field = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && src[i + 1] === "\n") i++;
+      row.push(field); field = ""; if (row.some((f) => f.trim() !== "")) rows.push(row); row = [];
+    } else field += ch;
+  }
+  row.push(field); if (row.some((f) => f.trim() !== "")) rows.push(row);
+  return rows;
+}
+const csvRow = (fields) => fields.map((f) => `"${String(f ?? "").replace(/"/g, '""')}"`).join(",");
+
+const HEADER_ALIASES = {
+  name: ["שם", "שם הלקוח", "name"],
+  type: ["סוג", "type"],
+  entityId: ["ת\"ז או ח\"פ", "ת\"ז / ח\"פ", "ח\"פ", "ת\"ז", "מספר ישות", "entityId", "ח.פ", "ת.ז"],
+  incomeTaxFile: ["מספר תיק", "תיק במס הכנסה", "תיק מ\"ה", "incomeTaxFile"],
+  email: ["מייל", "דוא\"ל", "email"],
+};
+const TYPE_MAP = { "עצמאי": "עצמאי", "עוסק מורשה": "עצמאי", "עוסק": "עצמאי", "חברה": "חברה", "חברה בע\"מ": "חברה", "שותפות": "שותפות" };
+
+function importClients(text) {
+  const rows = parseCsv(text);
+  if (rows.length < 2) return { added: 0, updated: 0, errors: ["הקובץ ריק"] };
+  const header = rows[0].map((h) => h.trim());
+  const col = {};
+  for (const [key, names] of Object.entries(HEADER_ALIASES)) col[key] = header.findIndex((h) => names.includes(h));
+  const missing = ["name", "type", "entityId"].filter((k) => col[k] < 0);
+  if (missing.length) return { added: 0, updated: 0, errors: ["חסרות עמודות: " + missing.map((k) => HEADER_ALIASES[k][0]).join(", ")] };
+  const byEntity = new Map(state.clients.map((c) => [c.entityId, c]));
+  let next = state.clients.reduce((m, c) => Math.max(m, Number(c.clientId.slice(1)) || 0), 0);
+  const errors = []; let added = 0, updated = 0;
+  rows.slice(1).forEach((r, i) => {
+    const line = i + 2;
+    const get = (k) => (col[k] >= 0 ? (r[col[k]] ?? "").trim() : "");
+    const entityId = get("entityId").replace(/[\s-]/g, "");
+    const type = TYPE_MAP[get("type")];
+    if (!get("name")) return errors.push(`שורה ${line}: חסר שם`);
+    if (!/^\d{5,9}$/.test(entityId)) return errors.push(`שורה ${line}: ת"ז או ח"פ לא תקינים ("${get("entityId")}")`);
+    if (!type) return errors.push(`שורה ${line}: סוג לא מוכר ("${get("type")}"). צריך: עצמאי, חברה או שותפות`);
+    const tik = get("incomeTaxFile").replace(/\D/g, "");
+    const fields = { name: get("name"), type, entityId: entityId.padStart(9, "0"), incomeTaxFile: tik || undefined, email: get("email") || undefined };
+    const existing = byEntity.get(fields.entityId);
+    if (existing) { Object.assign(existing, fields); updated++; }
+    else {
+      const c = { clientId: "C" + String(++next).padStart(5, "0"), ...fields };
+      state.clients.push(c); byEntity.set(c.entityId, c); added++;
+    }
+  });
+  save();
+  return { added, updated, errors };
+}
+
+// ---------- status per client
+function statusOf(c) {
+  const r = state.results[c.clientId];
+  const mark = state.marks[c.clientId] || null;
+  return computeStatus({
+    fetch: r ? r.fetch : null,
+    previousWithholdingEnd: mark ? mark.prevEnd : null,
+    mark: mark ? { state: mark.state, at: mark.at } : null,
+    checkPending: false, // in the semi-automatic pilot a "done" mark waits as done_waiting, so reminders continue
+    clientToldAt: state.told[c.clientId] || null,
+    today: todayIso(),
+    alertDays: Number(state.settings.alertDays),
+    alertOn: state.settings.alertOn,
+    extensions: state.settings.extensions,
+  });
+}
+const recordOf = (c) => { const r = state.results[c.clientId]; return r && r.fetch.outcome === "found" ? r.fetch.record : null; };
+const rateText = (r) => !r || r.kind === "none" ? "אין נתונים" : r.kind === "exempt" ? "פטור מלא" : `${r.percent}%`;
+const dateText = (d) => (d ? formatDate(d) : "—");
+const daysText = (n) => n === null || n === undefined ? "" : n < 0 ? `לפני ${-n} יום` : n === 0 ? "היום" : `בעוד ${n} יום`;
+const COLOR = { ok: "green", renew_soon: "amber", expired: "red", no_certificate: "red", in_progress: "blue", done_waiting: "blue", checking: "blue", wrong_number: "gray", virtual_partnership: "gray", no_response: "gray", unreadable: "gray" };
+const GROUPS = [["red", "פג תוקף או אין אישור"], ["amber", "לחידוש בקרוב"], ["blue", "בטיפול"], ["green", "תקין"], ["gray", "לבדיקה"]];
+
+function noteOf(c, s) {
+  const r = state.results[c.clientId];
+  if (!r) return "עוד לא נבדק";
+  if (r.fetch.outcome === "error") return `שגיאה ${r.fetch.error.code}: ${r.fetch.error.description}`;
+  if (r.fetch.outcome === "no_response") return "לא חזר בקבצים מרשות המסים";
+  if (state.pending[c.clientId]) return "סומן טופל, מחכה לעדכון הבא";
+  const m = state.marks[c.clientId];
+  if (m && (s.key === "in_progress" || s.key === "done_waiting")) return `סומן ב-${formatDate(m.at)}`;
+  return `עודכן ${formatDate(r.fetchedAt)}`;
+}
+
+// ---------- table + filters
+const fs = { type: new Set(), id: new Set(), rate: new Set(), when: new Set(), books: new Set(), status: new Set(), note: new Set(), told: new Set() };
+let query = "", openCol = null;
+const bucket = (d, s) => !d ? "אין תאריך" : (s => s < 0 ? "כבר פג" : s <= Number(state.settings.alertDays) ? "בחודש הקרוב" : "אחר כך")(Math.round((Date.parse(d) - Date.parse(todayIso())) / 86400000));
+const colVal = {
+  type: (c) => c.type,
+  id: (c) => c.entityId,
+  rate: (c) => { const r = recordOf(c); return r ? rateText(r.rates[0]) : "—"; },
+  when: (c) => bucket(recordOf(c)?.withholding.end),
+  books: (c) => bucket(recordOf(c)?.books.end),
+  status: (c) => STATUS_LABEL[statusOf(c).key],
+  note: (c) => { const n = noteOf(c, statusOf(c)); return n.startsWith("שגיאה") ? "שגיאה מרשות המסים" : n.startsWith("עודכן") ? "עודכן" : n; },
+  told: (c) => state.told[c.clientId] ? "נשלח" : "לא נשלח",
+};
+const passes = (c) => Object.keys(fs).every((k) => !fs[k].size || fs[k].has(colVal[k](c)));
+
+function openPop(col, btn) {
+  closePop(); openCol = col;
+  const vals = [...new Set(state.clients.map(colVal[col]))].sort();
+  const r = btn.getBoundingClientRect();
+  const p = document.createElement("div");
+  p.className = "pop"; p.id = "pop";
+  p.innerHTML = vals.map((v, j) => `<label><input type="checkbox" id="pv-${col}-${j}" value="${esc(v)}" ${fs[col].has(v) ? "checked" : ""}> ${esc(v)}</label>`).join("")
+    + `<div class="row"><button class="link" id="pop-all">הצג הכול</button><button class="link" id="pop-close">סגור</button></div>`;
+  document.body.appendChild(p);
+  p.style.top = r.bottom + 6 + "px";
+  p.style.right = Math.max(8, innerWidth - r.right) + "px";
+  p.querySelectorAll("input").forEach((x) => (x.onchange = () => { x.checked ? fs[col].add(x.value) : fs[col].delete(x.value); renderTable(); }));
+  $("pop-all").onclick = () => { fs[col].clear(); closePop(); renderTable(); };
+  $("pop-close").onclick = closePop;
+}
+function closePop() { $("pop")?.remove(); openCol = null; }
+document.addEventListener("click", (e) => { if (openCol && !e.target.closest(".pop, .fh")) closePop(); });
+
+function renderSummary() {
+  const counts = {};
+  state.clients.forEach((c) => { const g = COLOR[statusOf(c).key]; counts[g] = (counts[g] || 0) + 1; });
+  $("summary").innerHTML = GROUPS.map(([g, label]) => {
+    const labels = Object.entries(COLOR).filter(([, v]) => v === g).map(([k]) => STATUS_LABEL[k]);
+    const on = fs.status.size > 0 && [...fs.status].every((x) => labels.includes(x));
+    return `<button class="chip-card ${g}" data-g="${g}" aria-pressed="${on}"><b>${counts[g] || 0}</b><span>${label}</span></button>`;
+  }).join("");
+  document.querySelectorAll(".chip-card").forEach((b) => (b.onclick = () => {
+    const labels = Object.entries(COLOR).filter(([, v]) => v === b.dataset.g).map(([k]) => STATUS_LABEL[k]);
+    const on = b.getAttribute("aria-pressed") === "true";
+    fs.status.clear(); if (!on) labels.forEach((l) => fs.status.add(l));
+    renderTable();
+  }));
+}
+
+function renderTable() {
+  renderSummary();
+  const q = query.trim();
+  const rows = state.clients.filter(passes).filter((c) => !q || c.name.includes(q) || c.entityId.includes(q) || (c.incomeTaxFile || "").includes(q));
+  $("rows").innerHTML = rows.map((c) => {
+    const s = statusOf(c), rec = recordOf(c), r = state.results[c.clientId];
+    const g = COLOR[s.key];
+    const prev = r?.previous;
+    const other = rec && rec.rates.slice(1).some((x) => x.kind === "rate");
+    const needs = ["expired", "renew_soon", "no_certificate", "in_progress", "done_waiting", "checking"].includes(s.key) || state.marks[c.clientId];
+    const whichText = s.which === "books" ? "ניהול ספרים" : s.which === "both" ? "שני האישורים" : "";
+    const toldCell = state.told[c.clientId]
+      ? `<span class="sub" style="color:var(--green);font-weight:600">נשלח ${formatDate(state.told[c.clientId])}</span> <button class="btn ghost small" data-untell="${c.clientId}">בטל</button>`
+      : needs ? `<label class="sub"><input type="checkbox" data-tell="${c.clientId}"> לעדכן שאנחנו מחדשים</label>` : "";
+    return `<tr class="${g}${r && r.fresh ? " fresh" : ""}">
+      <td><button class="linkname" data-d="${c.clientId}">${esc(c.name)}</button><div class="sub">${c.type}</div></td>
+      <td class="num">${c.entityId}</td>
+      <td class="num">${rec ? rateText(rec.rates[0]) : "—"}${prev && rec && prev.rate !== rateText(rec.rates[0]) ? `<div class="was">${esc(prev.rate)}</div>` : ""}${other ? `<div class="sub">יש שיעור אחר בסעיף אחר</div>` : ""}</td>
+      <td class="num">${dateText(rec?.withholding.end)}${prev && rec && prev.end && prev.end !== rec.withholding.end ? `<div class="was">${formatDate(prev.end)}</div>` : ""}${rec?.withholding.end && s.which !== "books" ? `<div class="sub">${daysText(s.which ? s.daysLeft : null)}</div>` : ""}</td>
+      <td class="num">${dateText(rec?.books.end)}${s.which === "books" ? `<div class="sub">${daysText(s.daysLeft)}</div>` : ""}</td>
+      <td><span class="pill ${g}">${STATUS_LABEL[s.key]}</span>${s.urgent && g !== "red" ? ` <span class="pill red">דחוף</span>` : ""}${whichText ? `<div class="sub">${whichText}</div>` : ""}</td>
+      <td class="sub">${esc(noteOf(c, s))}</td>
+      <td>${toldCell}</td>
+      <td>${needs ? `<button class="btn small ghost" data-mark="${c.clientId}">סמן</button>` : ""}</td>
+    </tr>`;
+  }).join("") || `<tr class="empty"><td colspan="9">${state.clients.length ? "אין לקוח שמתאים לחיפוש או לסינון" : "עוד אין לקוחות. מעלים רשימה בלשונית \"הגדרות ולקוחות\"."}</td></tr>`;
+  document.querySelectorAll("#p-clients .fh").forEach((b) => b.classList.toggle("on", fs[b.dataset.col].size > 0));
+  $("clear-f").hidden = !Object.values(fs).some((s) => s.size) && !query;
+  $("first-steps").hidden = state.clients.length > 0 && !!state.lastRun;
+  document.querySelectorAll("[data-mark]").forEach((b) => (b.onclick = () => openMark(b.dataset.mark)));
+  document.querySelectorAll("[data-d]").forEach((b) => (b.onclick = () => openDetail(b.dataset.d)));
+  document.querySelectorAll("[data-tell]").forEach((b) => (b.onchange = () => { state.told[b.dataset.tell] = todayIso(); save(); renderAll(); }));
+  document.querySelectorAll("[data-untell]").forEach((b) => (b.onclick = () => { delete state.told[b.dataset.untell]; save(); renderAll(); }));
+}
+
+// ---------- marks + detail
+let current = null;
+function openMark(id) {
+  current = id;
+  const c = state.clients.find((x) => x.clientId === id);
+  const rec = recordOf(c);
+  $("m-client").textContent = `${c.name} · ניכוי בתוקף עד ${dateText(rec?.withholding.end)} · ניהול ספרים עד ${dateText(rec?.books.end)}`;
+  $("st-prog").checked = true;
+  $("mark-modal").hidden = false;
+}
+$("m-cancel").onclick = () => ($("mark-modal").hidden = true);
+$("m-save").onclick = () => {
+  const c = state.clients.find((x) => x.clientId === current);
+  if ($("st-clear").checked) { delete state.marks[current]; delete state.pending[current]; }
+  else if ($("st-done").checked) { state.marks[current] = { state: "done", at: todayIso(), prevEnd: recordOf(c)?.withholding.end ?? null }; state.pending[current] = true; }
+  else state.marks[current] = { state: "in_progress", at: todayIso(), prevEnd: recordOf(c)?.withholding.end ?? null };
+  $("mark-modal").hidden = true; save(); renderAll();
+};
+const SECTIONS = ["שירותים או נכסים, המחאות, עבודה ותוצרת חקלאית", "עבודות בנייה והובלה", "עמלת ביטוח", "סוגי שכר מסוימים", "ריבית ושוק ההון", "שכר דירה"];
+function openDetail(id) {
+  const c = state.clients.find((x) => x.clientId === id), rec = recordOf(c), r = state.results[id];
+  const cert = (x) => x ? `${dateText(x.start)} עד ${dateText(x.end)}${x.issued ? ` (הופק ${dateText(x.issued)})` : ""}` : "—";
+  $("d-body").innerHTML = `
+    <h2>${esc(c.name)}</h2>
+    <p class="muted">${c.type} · ${c.entityId}${c.incomeTaxFile ? " · תיק " + c.incomeTaxFile : ""}${c.email ? " · " + esc(c.email) : ""}</p>
+    ${r && r.fetch.outcome === "error" ? `<p class="warn">שגיאה ${r.fetch.error.code} מרשות המסים: ${esc(r.fetch.error.description)}</p>` : ""}
+    ${rec ? `<p class="sub">השם ברשות המסים: ${esc(rec.nameAtAuthority) || "—"} · מספר ישות שאותר: ${rec.entityIdFound || "—"}</p>
+    <h3>שיעורי ניכוי לפי סוג תשלום</h3>
+    <dl class="kv">${SECTIONS.map((s, j) => `<dt>${j + 1}. ${s}</dt><dd>${rateText(rec.rates[j])}</dd>`).join("")}</dl>
+    <h3>אישורים</h3>
+    <dl class="kv"><dt>ניכוי במקור</dt><dd>${cert(rec.withholding)}</dd><dt>ניהול ספרים</dt><dd>${cert(rec.books)} · שדה האישור: "${esc(rec.booksFlag)}"</dd></dl>` : `<p class="sub">אין עדיין נתונים מרשות המסים.</p>`}
+    ${r ? `<p class="sub">נבדק לאחרונה: ${formatDate(r.fetchedAt)}</p>` : ""}`;
+  $("detail").hidden = false;
+}
+$("d-close").onclick = () => ($("detail").hidden = true);
+
+// ---------- update from the Tax Authority
+function renderUpdate() {
+  const n = state.clients.length, files = Math.ceil(n / MAX_PER_FILE);
+  const ok = /^9\d{8}$/.test(state.office.deductionsFile);
+  $("build-hint").textContent = !n ? "קודם מעלים רשימת לקוחות." : !ok ? "קודם ממלאים את תיק הניכויים בלשונית ההגדרות." : `${n} לקוחות, ${files} קבצים.`;
+  $("download-input").disabled = !n || !ok;
+  const run = state.lastRun;
+  if (run) {
+    $("run-result").innerHTML = `<dl class="kv"><dt>תאריך</dt><dd>${formatDate(run.at)}</dd><dt>נמצאו</dt><dd>${run.counts.found}</dd><dt>שגיאות</dt><dd>${run.counts.error}</dd><dt>לא חזרו</dt><dd>${run.counts.no_response}</dd></dl>`
+      + (run.ok ? "" : `<p class="warn">הספירה בקבצים לא תאמה למה שנשלח. עודכנו רק הלקוחות שחזרו, והשאר נשארו עם הנתונים הקודמים.</p>`)
+      + (run.warnings.length ? `<details><summary class="sub">${run.warnings.length} הערות טכניות</summary><ul class="sub">${run.warnings.map((w) => `<li class="ltr">${esc(w)}</li>`).join("")}</ul></details>` : "");
+    $("last-run").textContent = `העדכון האחרון מרשות המסים: ${formatDate(run.at)}.`;
+  } else $("last-run").textContent = "עוד לא נעשה עדכון מרשות המסים.";
+}
+$("download-input").onclick = () => {
+  try {
+    const files = buildInputFiles(state.office.deductionsFile, state.clients);
+    files.forEach((f, i) => setTimeout(() => download(`input-${i + 1}.txt`, f, "text/plain"), i * 400));
+  } catch (e) { alertBox("לא הצלחתי לבנות את הקובץ: " + e.message); }
+};
+$("load-results").onclick = async () => {
+  const vf = [...$("f-valid").files], ef = [...$("f-errors").files];
+  const chunks = Math.ceil(state.clients.length / MAX_PER_FILE);
+  if (!vf.length || !ef.length) return alertBox("צריך לבחור גם קובץ תקינים (Takin) וגם קובץ שגיאות (shagui).");
+  if (vf.length !== chunks || ef.length !== chunks) return alertBox(`יש ${state.clients.length} לקוחות, ולכן צריך ${chunks} קובצי תקינים ו-${chunks} קובצי שגיאות.`);
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  vf.sort(byName); ef.sort(byName);
+  const today = todayIso();
+  const all = { ok: true, fetches: [], warnings: [] };
+  for (let i = 0; i < chunks; i++) {
+    const valid = parseValidFile(decodeFile(await readBytes(vf[i])));
+    const errors = parseErrorsFile(decodeFile(await readBytes(ef[i])));
+    const r = reconcile(state.clients.slice(i * MAX_PER_FILE, (i + 1) * MAX_PER_FILE), valid, errors);
+    all.ok = all.ok && r.ok; all.fetches.push(...r.fetches); all.warnings.push(...r.warnings);
+  }
+  const counts = { found: 0, error: 0, no_response: 0 };
+  for (const f of all.fetches) {
+    counts[f.outcome]++;
+    if (f.outcome === "no_response" && !all.ok) continue; // a broken run never wipes good data
+    const old = state.results[f.clientId];
+    const oldRec = old && old.fetch.outcome === "found" ? old.fetch.record : null;
+    const newRec = f.outcome === "found" ? f.record : null;
+    const changed = oldRec && newRec && (oldRec.withholding.end !== newRec.withholding.end || rateText(oldRec.rates[0]) !== rateText(newRec.rates[0]));
+    state.results[f.clientId] = {
+      fetch: f, fetchedAt: today,
+      previous: changed ? { rate: rateText(oldRec.rates[0]), end: oldRec.withholding.end } : old?.previous ?? null,
+      fresh: !!changed,
+    };
+    delete state.pending[f.clientId];
+    const s = statusOf(state.clients.find((c) => c.clientId === f.clientId));
+    if (s.key === "ok") delete state.marks[f.clientId]; // renewed: the mark has done its job
+  }
+  state.lastRun = { at: today, ok: all.ok, warnings: all.warnings, counts };
+  save(); renderAll();
+};
+
+// ---------- weekly email
+function renderMail() {
+  const items = state.clients.map((c) => {
+    const rec = recordOf(c);
+    const end = rec ? effectiveEnd(rec.withholding.end ?? "", state.settings.extensions) || null : null;
+    const booksEnd = rec ? effectiveEnd(rec.books.end ?? "", state.settings.extensions) || null : null;
+    return { client: c, status: statusOf(c), end, booksEnd };
+  });
+  const d = buildDigest(items);
+  if (!d) { $("mail").innerHTML = `<p>אין השבוע לקוחות שצריכים טיפול, ולכן לא יישלח מייל.</p>`; return ""; }
+  const block = (title, list) => list.length ? `<p><b>${title}</b></p><ul>${list.map((x) => `<li>${esc(x.line)}</li>`).join("")}</ul>` : "";
+  $("mail").innerHTML = `<div><span class="muted">נושא:</span> <b>${esc(d.subject)}</b></div><p>שלום,</p>`
+    + block("דחוף:", d.urgent) + block("פג בחודש הקרוב:", d.soon) + block("בטיפול:", d.inProgress)
+    + `<p class="sub">המייל נשלח שוב בכל שבוע, עד שכל לקוח ברשימה מטופל.</p>`;
+  const text = (title, list) => list.length ? `${title}\n${list.map((x) => "- " + x.line).join("\n")}\n\n` : "";
+  return `${d.subject}\n\nשלום,\n\n` + text("דחוף:", d.urgent) + text("פג בחודש הקרוב:", d.soon) + text("בטיפול:", d.inProgress);
+}
+$("copy-mail").onclick = async () => {
+  try { await navigator.clipboard.writeText(renderMail()); $("copy-ok").textContent = "הועתק"; }
+  catch { $("copy-ok").textContent = "ההעתקה לא הצליחה. אפשר לסמן את הטקסט ולהעתיק ידנית."; }
+};
+
+// ---------- settings
+function renderSettings() {
+  $("office-line").textContent = `${state.office.name || "משרד ללא שם"} · ${state.clients.length} לקוחות`;
+  $("s-office").value = state.office.name;
+  $("s-tik").value = state.office.deductionsFile;
+  $("s-which").value = state.settings.alertOn;
+  $("s-days").value = String(state.settings.alertDays);
+  $("ext-list").innerHTML = state.settings.extensions.map((e, i) =>
+    `<div class="ext-row sub">${formatDate(e.oldEnd)} ← ${formatDate(e.newEnd)} <button class="btn ghost small" data-ext="${i}">הסר</button></div>`).join("");
+  document.querySelectorAll("[data-ext]").forEach((b) => (b.onclick = () => { state.settings.extensions.splice(+b.dataset.ext, 1); save(); renderAll(); }));
+}
+$("s-office").onchange = (e) => { state.office.name = e.target.value.trim(); save(); renderAll(); };
+$("s-tik").onchange = (e) => {
+  const v = e.target.value.replace(/\D/g, "");
+  if (v && !/^9\d{8}$/.test(v)) { e.target.setCustomValidity("9 ספרות שמתחילות ב-9"); e.target.reportValidity(); return; }
+  e.target.setCustomValidity(""); state.office.deductionsFile = v; save(); renderAll();
+};
+$("s-which").onchange = (e) => { state.settings.alertOn = e.target.value; save(); renderAll(); };
+$("s-days").onchange = (e) => { state.settings.alertDays = Number(e.target.value); save(); renderAll(); };
+$("ext-add").onclick = () => {
+  const o = $("ext-old").value, n = $("ext-new").value;
+  if (!o || !n) return;
+  state.settings.extensions.push({ oldEnd: o, newEnd: n }); save(); renderAll();
+};
+$("template").onclick = () => download("לקוחות-תבנית.csv", "﻿" + [csvRow(["שם", "סוג", "ת\"ז או ח\"פ", "מספר תיק", "מייל"]), csvRow(["דוגמה בע\"מ", "חברה", "515672341", "", "office@example.com"])].join("\r\n") + "\r\n", "text/csv");
+$("f-clients").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const res = importClients(decodeFile(await readBytes(f)));
+  $("import-result").innerHTML = `נוספו ${res.added}, עודכנו ${res.updated}.` + (res.errors.length ? `<div class="warn">${res.errors.slice(0, 20).map(esc).join("<br>")}${res.errors.length > 20 ? `<br>ועוד ${res.errors.length - 20}` : ""}</div>` : "");
+  e.target.value = ""; renderAll();
+};
+$("backup").onclick = () => download(`גיבוי-פיילוט-${todayIso()}.json`, JSON.stringify(state, null, 1), "application/json");
+$("f-restore").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try { state = { ...emptyState(), ...JSON.parse(await f.text()) }; save(); renderAll(); $("import-result").textContent = "הגיבוי שוחזר."; }
+  catch { $("import-result").textContent = "הקובץ הזה הוא לא גיבוי תקין."; }
+};
+$("wipe").onclick = () => ($("wipe-confirm").hidden = false);
+$("wipe-no").onclick = () => ($("wipe-confirm").hidden = true);
+$("wipe-yes").onclick = () => { state = emptyState(); save(); $("wipe-confirm").hidden = true; renderAll(); };
+
+// ---------- table export
+$("export-table").onclick = () => {
+  const head = ["שם", "סוג", "ת\"ז / ח\"פ", ...SECTIONS.map((s, j) => `${j + 1}. ${s}`), "ניכוי עד", "ניהול ספרים עד", "מצב", "הערות", "הודעה ללקוח"];
+  const rows = state.clients.filter(passes).map((c) => {
+    const rec = recordOf(c), s = statusOf(c);
+    return csvRow([c.name, c.type, c.entityId, ...SECTIONS.map((_, j) => rec ? rateText(rec.rates[j]) : ""), rec ? dateText(rec.withholding.end) : "", rec ? dateText(rec.books.end) : "", STATUS_LABEL[s.key], noteOf(c, s), state.told[c.clientId] ? formatDate(state.told[c.clientId]) : ""]);
+  });
+  download(`ניכוי-במקור-${todayIso()}.csv`, "﻿" + [csvRow(head), ...rows].join("\r\n") + "\r\n", "text/csv");
+};
+
+// ---------- tabs + boot
+document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => {
+  document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", String(x === t)));
+  document.querySelectorAll(".panel").forEach((p) => (p.hidden = p.id !== t.dataset.panel));
+  if (t.dataset.panel === "p-mail") renderMail();
+}));
+$("q").oninput = (e) => { query = e.target.value; renderTable(); };
+$("clear-f").onclick = () => { Object.values(fs).forEach((s) => s.clear()); query = ""; $("q").value = ""; closePop(); renderTable(); };
+document.querySelectorAll("#p-clients .fh").forEach((b) => (b.onclick = () => (openCol === b.dataset.col ? closePop() : openPop(b.dataset.col, b))));
+function renderAll() { renderSettings(); renderUpdate(); renderTable(); renderMail(); }
+function showTab(panel) { document.querySelector(`.tab[data-panel="${panel}"]`).click(); }
+
+// ---------- first visit + help
+const WELCOME_KEY = "officePilot.welcomeSeen";
+function closeWelcome() {
+  if ($("w-hide").checked) { try { localStorage.setItem(WELCOME_KEY, "1"); } catch {} }
+  $("welcome").hidden = true;
+}
+$("w-start").onclick = () => { closeWelcome(); showTab(state.clients.length ? "p-clients" : "p-settings"); };
+$("w-help").onclick = () => { closeWelcome(); showTab("p-help"); };
+$("open-help").onclick = () => showTab("p-help");
+let seen = false;
+try { seen = localStorage.getItem(WELCOME_KEY) === "1"; } catch {}
+
+// ---------- boot
+async function enterOffice() {
+  const { data: m, error } = await sb.from("op_members").select("office_id, role, op_offices(name)").limit(1).maybeSingle();
+  if (error || !m) {
+    $("login-msg").textContent = error ? "שגיאה בטעינה: " + error.message : "המשתמש הזה עוד לא שויך למשרד. פנו לצחי.";
+    await sb.auth.signOut(); return;
+  }
+  officeId = m.office_id;
+  await pullCloud();
+  if (!state.office.name && m.op_offices) { state.office.name = m.op_offices.name; }
+  $("login").hidden = true;
+  $("user-line").hidden = false;
+  $("welcome").hidden = seen;
+  renderAll(); notify();
+  setSync("נשמר");
+}
+if (CLOUD) {
+  sb = window.supabase.createClient(window.OP_CONFIG.url, window.OP_CONFIG.anon, { auth: { persistSession: true } });
+  $("login").hidden = false;
+  $("login-form").onsubmit = async (e) => {
+    e.preventDefault();
+    $("login-msg").textContent = "מתחבר…";
+    const { error } = await sb.auth.signInWithPassword({ email: $("login-email").value.trim(), password: $("login-pw").value });
+    if (error) { $("login-msg").textContent = "המייל או הסיסמה לא נכונים."; return; }
+    $("login-msg").textContent = "";
+    $("me").textContent = $("login-email").value.trim();
+    await enterOffice();
+  };
+  $("logout").onclick = async () => { await saving; await sb.auth.signOut(); location.reload(); };
+  $("change-pw").onclick = () => { $("pw-box").hidden = !$("pw-box").hidden; };
+  $("pw-save").onclick = async () => {
+    const pw = $("pw-new").value;
+    if (pw.length < 8) { $("pw-msg").textContent = "לפחות 8 תווים."; return; }
+    const { error } = await sb.auth.updateUser({ password: pw });
+    $("pw-msg").textContent = error ? "לא הצלחתי לשנות: " + error.message : "הסיסמה שונתה.";
+    $("pw-new").value = "";
+  };
+  sb.auth.getSession().then(async ({ data }) => {
+    if (data.session) { $("me").textContent = data.session.user.email; await enterOffice(); }
+  });
+  window.addEventListener("beforeunload", (e) => { if (saveTimer && $("sync").textContent === "שומר…") e.preventDefault(); });
+} else {
+  $("welcome").hidden = seen;
+  renderAll();
+}
+
+// נוצר אוטומטית מ-projects/advance-payments/pilot/build-advance.mjs. לא לערוך כאן.
+(() => {
+// ---- advance-payments/engine/tax-tables.ts
+                                                
+
+// אומת מול הסימולטור של רשות המסים ב-26/10/2026. מעל 721,560 כולל מס יסף.
+const TABLES                                = {
+  2025: {
+    year: 2025,
+    brackets: [
+      { upTo: 84120, rate: 0.10 }, { upTo: 120720, rate: 0.14 }, { upTo: 193800, rate: 0.20 },
+      { upTo: 269280, rate: 0.31 }, { upTo: 560280, rate: 0.35 }, { upTo: 721560, rate: 0.47 },
+      { upTo: Infinity, rate: 0.50 },
+    ],
+    creditPointValue: 2904,
+    corporateRate: 0.23,
+  },
+  2026: {
+    year: 2026,
+    brackets: [
+      { upTo: 84120, rate: 0.10 }, { upTo: 120720, rate: 0.14 }, { upTo: 228000, rate: 0.20 },
+      { upTo: 301200, rate: 0.31 }, { upTo: 560280, rate: 0.35 }, { upTo: 721560, rate: 0.47 },
+      { upTo: Infinity, rate: 0.50 },
+    ],
+    creditPointValue: 2904,
+    corporateRate: 0.23,
+  },
+};
+
+function getTaxParams(year        )                {
+  const p = TABLES[year];
+  if (!p) throw new Error(`אין טבלת מס לשנת ${year}`);
+  return p;
+}
+
+// ---- advance-payments/engine/tax.ts
+                                                            
+
+function bracketBreakdown(taxable        , p               )               {
+  const rows               = [];
+  let from = 0;
+  for (const b of p.brackets) {
+    if (taxable <= from) break;
+    const to = Math.min(taxable, b.upTo);
+    rows.push({ from, to, rate: b.rate, tax: (to - from) * b.rate });
+    from = b.upTo;
+  }
+  return rows;
+}
+
+function grossTax(taxable        , p               )         {
+  return bracketBreakdown(taxable, p).reduce((s, r) => s + r.tax, 0);
+}
+
+function individualTax(taxable        , creditPoints        , p               )         {
+  return Math.max(0, grossTax(taxable, p) - creditPoints * p.creditPointValue);
+}
+
+// ההכנסה החייבת הקטנה ביותר מהעסק, שהמס הנוסף עליה (מעל השכר) מגיע ל-targetTax
+function taxableFromTax(targetTax        , creditPoints        , salary        , p               )         {
+  const onSalary = individualTax(salary, creditPoints, p);
+  let lo = 0;
+  let hi = 100_000_000;
+  while (individualTax(salary + hi, creditPoints, p) - onSalary < targetTax) {
+    if (hi > 1e13) throw new Error("לא נמצאה הכנסה חייבת שמתאימה למס");
+    hi *= 2;
+  }
+  while (hi - lo > 0.01) {
+    const mid = (lo + hi) / 2;
+    if (individualTax(salary + mid, creditPoints, p) - onSalary < targetTax) lo = mid;
+    else hi = mid;
+  }
+  return hi;
+}
+
+// ---- advance-payments/engine/calibrate.ts
+                                                                    
+
+
+// מכייל את סכום ההתאמה (ה"ת) מהשיעור של פקיד השומה מול הרווח לפי SUMIT. סעיף 3.3 במסמך התכנון
+function calibrate(input                )              {
+  const { base } = input;
+  const bookProfit = base.revenue - base.expenses;
+  const actualTax = (input.currentRatePct / 100) * base.revenue;
+  const uncalibrated              = {
+    baseYear: base.year, bookProfit, actualTax, taxableIncome: bookProfit,
+    adjustment: 0, adjustmentPct: 0, calibrated: false,
+  };
+  if (input.currentRatePct <= 0 || bookProfit <= 0 || base.revenue <= 0) return uncalibrated;
+
+  const p = getTaxParams(base.year);
+  const taxableIncome = input.kind === "company"
+    ? actualTax / p.corporateRate
+    : taxableFromTax(actualTax, input.creditPoints, input.salary, p);
+  const adjustment = taxableIncome - bookProfit;
+  return {
+    baseYear: base.year, bookProfit, actualTax, taxableIncome,
+    adjustment, adjustmentPct: adjustment / base.revenue, calibrated: true,
+  };
+}
+
+// ---- advance-payments/engine/explain.ts
+                                                                                                           
+
+
+const DEFAULT_CP = 2.25;
+const nf = new Intl.NumberFormat("he-IL", { maximumFractionDigits: 0 });
+const ils = (n        ) => `${nf.format(Math.round(n))} ₪`;
+const num = (n        ) => nf.format(Math.round(n));
+const pct = (n        ) => `${Number(n.toFixed(2))}%`;
+
+const FLAG_HE                       = {
+  "zero-rate": "אין שיעור מקדמה נוכחי",
+  "no-calibration": "לא ניתן לכייל משנת הבסיס",
+  "revenue-jump": "קפיצה במחזור בין השנים",
+  "large-asset": "נרכש רכוש קבוע גדול",
+  "no-base-year": "אין שנת בסיס מלאה",
+  "expense-change": "הלקוח צופה שינוי בהוצאות",
+  "salary-changed": "השכר השתנה",
+  "variants-diverge": "פער בין שתי שיטות ההתאמה",
+  "no-tax-forecast": "התחזית לא מראה מס לתשלום",
+};
+
+function buildSteps(input           , cal             , f          , yearEndGap        ,
+  lowering                                                    = null)         {
+  const steps         = [];
+  const add = (label        , formula        , value        , source                ) => steps.push({ label, formula, value, source });
+  const isInd = input.kind === "individual";
+  if (input.base) {
+    const b = input.base;
+    add("הכנסות שנת הבסיס", `${b.year}: ${ils(b.revenue)}`, b.revenue, "sumit");
+    add("הוצאות שנת הבסיס", `${b.year}: ${ils(b.expenses)}`, b.expenses, "sumit");
+    add("רווח לפי SUMIT", `${num(b.revenue)} − ${num(b.expenses)} = ${num(cal.bookProfit)}`, cal.bookProfit, "calc");
+  }
+  add("שיעור מקדמה נוכחי", pct(input.currentRatePct), input.currentRatePct, "tax-office");
+  if (isInd) {
+    const given = input.creditPoints !== undefined;
+    add("נקודות זיכוי", given ? `${input.creditPoints}` : `${DEFAULT_CP} (ברירת מחדל)`, input.creditPoints ?? DEFAULT_CP, given ? "form" : "default");
+    if (input.salary) add("שכר מהחברה", ils(input.salary), input.salary, "form");
+  }
+  if (input.base) {
+    add("מס בפועל לפי השיעור", `${num(input.base.revenue)} × ${pct(input.currentRatePct)} = ${num(cal.actualTax)}`, cal.actualTax, "calc");
+    if (cal.calibrated) {
+      const p = getTaxParams(cal.baseYear);
+      const how = isInd
+        ? `חישוב לאחור לפי מדרגות ${cal.baseYear} = ${num(cal.taxableIncome)}`
+        : `${num(cal.actualTax)} ÷ ${pct(p.corporateRate * 100)} = ${num(cal.taxableIncome)}`;
+      add("הכנסה חייבת לפי השומה", how, cal.taxableIncome, "calc");
+      add("סכום התאמה (ה\"ת)", `${num(cal.taxableIncome)} − ${num(cal.bookProfit)} = ${num(cal.adjustment)} (${pct(cal.adjustmentPct * 100)} מהמחזור)`, cal.adjustment, "calc");
+    } else {
+      add("סכום התאמה (ה\"ת)", "לא ניתן לכייל, ה\"ת = 0", 0, "calc");
+    }
+  }
+  add("הכנסה צפויה", `${input.forecastYear}: ${ils(input.forecastRevenue)}`, input.forecastRevenue, "form");
+  add("יחס הוצאות", `${pct(f.expenseRatio * 100)} (${f.expenseRatioSource === "ytd" ? "מהשנה הנוכחית עד היום" : "משנת הבסיס"})`, f.expenseRatio, "sumit");
+  add("הוצאות צפויות", `${num(input.forecastRevenue)} × ${pct(f.expenseRatio * 100)} = ${num(f.forecastExpenses)}`, f.forecastExpenses, "calc");
+  add("הכנסה חייבת צפויה", `${num(input.forecastRevenue)} − ${num(f.forecastExpenses)} + ${num(cal.adjustment)} = ${num(f.taxableIncome)}`, f.taxableIncome, "calc");
+  const taxHow = isInd
+    ? `לפי מדרגות ${input.forecastYear}${input.salary ? ", מעל השכר" : ""} = ${num(f.tax)}`
+    : `${num(f.taxableIncome)} × ${pct(getTaxParams(input.forecastYear).corporateRate * 100)} = ${num(f.tax)}`;
+  add("מס צפוי", taxHow, f.tax, "tax-table");
+  add("שיעור לפני עיגול", `${num(f.tax)} ÷ ${num(input.forecastRevenue)} = ${pct(f.rawRatePct)}`, f.rawRatePct, "calc");
+  add("שיעור חדש", `מעוגל כלפי מעלה: ${pct(f.newRatePct)}`, f.newRatePct, "calc");
+  add("שיעור לפי ה\"ת כאחוז מהמחזור", `שיטה חלופית לבקרה: ${pct(f.variantRatePct)}`, f.variantRatePct, "calc");
+  if (lowering) {
+    add("שיעור מוצע להורדה", `${pct(f.newRatePct)} × ${lowering.safetyFactor} (מקדם ביטחון), מעוגל כלפי מעלה = ${pct(lowering.proposed)}`, lowering.proposed, "calc");
+  }
+  add("פער בסוף השנה", `(${pct(f.newRatePct)} − ${pct(input.currentRatePct)}) × ${num(input.forecastRevenue)} = ${num(yearEndGap)}`, yearEndGap, "calc");
+  return steps;
+}
+
+function buildBrackets(input           , f          )               {
+  const p = getTaxParams(input.forecastYear);
+  if (input.kind === "company") {
+    const t = Math.max(0, f.taxableIncome);
+    return t > 0 ? [{ from: 0, to: t, rate: p.corporateRate, tax: t * p.corporateRate }] : [];
+  }
+  return bracketBreakdown((input.salary ?? 0) + f.taxableIncome, p);
+}
+
+function buildReason(input           , rec                , underlying                ,
+  proposed        , yearEndGap        , flags        )         {
+  const parts           = [];
+  if (input.base && input.base.revenue > 0) {
+    const ch = (input.forecastRevenue / input.base.revenue - 1) * 100;
+    if (Math.abs(ch) < 0.5) parts.push(`ההכנסה הצפויה דומה לשנת הבסיס, ${ils(input.forecastRevenue)}.`);
+    else parts.push(`ההכנסה הצפויה ${ch > 0 ? "עולה" : "יורדת"} ב-${Math.abs(Math.round(ch))}%, מ-${ils(input.base.revenue)} ל-${ils(input.forecastRevenue)}.`);
+  }
+  if (yearEndGap === 0) parts.push(`בשיעור הנוכחי של ${pct(input.currentRatePct)} לא צפוי פער.`);
+  else parts.push(`בשיעור הנוכחי של ${pct(input.currentRatePct)} ${yearEndGap > 0 ? "יצטבר חוב" : "ייווצר עודף"} של כ-${ils(Math.abs(yearEndGap))}.`);
+  if (underlying === "raise") parts.push(`מומלץ להעלות ל-${pct(proposed)}.`);
+  else if (underlying === "lower") parts.push(`מומלץ להוריד ל-${pct(proposed)}.`);
+  else parts.push("אין צורך בשינוי.");
+  if (rec === "review") parts.push(`לבדוק: ${flags.map((f) => FLAG_HE[f]).join(", ")}.`);
+  return parts.join(" ");
+}
+
+function buildClientSummary(input           , f          , yearEndGap        )         {
+  const paying = (input.currentRatePct / 100) * input.forecastRevenue;
+  const end = yearEndGap > 0
+    ? `אם לא נשנה את המקדמה, בסוף השנה צפוי חוב של כ-${ils(yearEndGap)}, שעליו מתווספים ריבית והצמדה.`
+    : yearEndGap < 0
+      ? `אם לא נשנה את המקדמה, בסוף השנה צפוי החזר של כ-${ils(-yearEndGap)}.`
+      : "המקדמה הנוכחית מתאימה, ולא צפוי פער בסוף השנה.";
+  return [
+    `לפי ההערכה שלך, הרווח שעליו משלמים מס ב-${input.forecastYear} צפוי להיות כ-${ils(Math.max(0, f.taxableIncome))}.`,
+    `המס הצפוי על הרווח הזה הוא כ-${ils(f.tax)}.`,
+    `במקדמות הנוכחיות תשלם במהלך השנה כ-${ils(paying)}.`,
+    end,
+  ].join(" ");
+}
+
+// ---- advance-payments/engine/calculate.ts
+                                                                                                               
+
+
+
+
+const DEFAULT_SETTINGS           = {
+  raiseThresholdPts: 1,
+  gapThreshold: 5000,
+  safetyFactor: 1.10,
+  variantDivergence: 5000,
+  jumpPct: 0.30,
+  ytdMinMonths: 6,
+};
+
+const DEFAULT_CREDIT_POINTS = 2.25;
+
+// עיגול כלפי מעלה לעשירית האחוז, אחרי ניקוי רעש של נקודה צפה
+function ceil1(pct        )         {
+  return Math.ceil(Math.round(pct * 10 * 1e6) / 1e6) / 10;
+}
+
+function businessTax(input           , taxable        )         {
+  const p = getTaxParams(input.forecastYear);
+  const t = Math.max(0, taxable);
+  if (input.kind === "company") return t * p.corporateRate;
+  const points = input.creditPoints ?? DEFAULT_CREDIT_POINTS;
+  const salary = input.salary ?? 0;
+  return individualTax(salary + t, points, p) - individualTax(salary, points, p);
+}
+
+function expenseRatioFor(input           , s          )                                            {
+  const { ytd, base } = input;
+  if (ytd && ytd.months >= s.ytdMinMonths && ytd.revenue > 0) return { ratio: ytd.expenses / ytd.revenue, source: "ytd" };
+  if (base && base.revenue > 0) return { ratio: base.expenses / base.revenue, source: "base" };
+  if (ytd && ytd.revenue > 0) return { ratio: ytd.expenses / ytd.revenue, source: "ytd" };
+  throw new Error(`אין נתוני הכנסות והוצאות ב-SUMIT ללקוח ${input.name}`);
+}
+
+function forecast(input           , cal             , s          )           {
+  const revenue = input.forecastRevenue;
+  if (!(revenue > 0)) throw new Error("ההכנסה הצפויה חייבת להיות חיובית");
+  const { ratio, source } = expenseRatioFor(input, s);
+  const forecastExpenses = revenue * ratio;
+  const profit = revenue - forecastExpenses;
+  const taxableIncome = profit + cal.adjustment;
+  const tax = businessTax(input, taxableIncome);
+  const rawRatePct = (tax / revenue) * 100;
+  const variantTax = businessTax(input, profit + cal.adjustmentPct * revenue);
+  return {
+    expenseRatio: ratio, expenseRatioSource: source, forecastExpenses, taxableIncome, tax,
+    rawRatePct, newRatePct: ceil1(rawRatePct), variantRatePct: (variantTax / revenue) * 100,
+  };
+}
+
+function flagsFor(input           , cal             , f          , s          )         {
+  const flags         = [];
+  if (input.currentRatePct <= 0) flags.push("zero-rate");
+  if (!cal.calibrated) flags.push("no-calibration");
+  if (!input.base || input.base.revenue <= 0) flags.push("no-base-year");
+  if (input.base && input.prevBaseRevenue && input.prevBaseRevenue > 0
+    && Math.abs(input.base.revenue / input.prevBaseRevenue - 1) > s.jumpPct) flags.push("revenue-jump");
+  if (input.largeAssetPurchase) flags.push("large-asset");
+  if (input.expenseChange) flags.push("expense-change");
+  if (input.salaryChanged) flags.push("salary-changed");
+  if ((Math.abs(f.newRatePct - f.variantRatePct) / 100) * input.forecastRevenue > s.variantDivergence) flags.push("variants-diverge");
+  if (f.tax <= 0) flags.push("no-tax-forecast");
+  return flags;
+}
+
+const EPS = 1e-9;
+
+function calculateClient(input           , s           = DEFAULT_SETTINGS)             {
+  if (typeof input.currentRatePct !== "number" || !Number.isFinite(input.currentRatePct) || input.currentRatePct < 0) {
+    throw new Error("שיעור המקדמה הנוכחי חסר או לא תקין");
+  }
+  const empty = { steps: [], brackets: [], clientSummaryHe: "", flags: []           };
+  if (input.fixedAmountAdvance) {
+    return { clientId: input.clientId, name: input.name, recommendation: "excluded", currentRatePct: input.currentRatePct,
+      newRatePct: null, proposedRatePct: null, yearEndGap: null, ...empty,
+      reasonHe: "מקדמה בסכום קבוע, לא נכלל בתהליך", mustReviewBeforeFiling: false };
+  }
+  const cal              = input.base
+    ? calibrate({ kind: input.kind, currentRatePct: input.currentRatePct, base: input.base,
+        creditPoints: input.creditPoints ?? DEFAULT_CREDIT_POINTS, salary: input.salary ?? 0 })
+    : { baseYear: input.forecastYear - 1, bookProfit: 0, actualTax: 0, taxableIncome: 0, adjustment: 0, adjustmentPct: 0, calibrated: false };
+  const f = forecast(input, cal, s);
+  const flags = flagsFor(input, cal, f, s);
+  const current = input.currentRatePct;
+  const revenue = input.forecastRevenue;
+  const yearEndGap = Math.round(((f.newRatePct - current) / 100) * revenue);
+
+  let underlying                 = "keep";
+  let proposed = current;
+  if (f.newRatePct - current >= s.raiseThresholdPts - EPS || yearEndGap > s.gapThreshold) {
+    underlying = "raise";
+    proposed = f.newRatePct;
+  } else {
+    const safe = ceil1(f.newRatePct * s.safetyFactor);
+    // בעשיריות אחוז ובשקלים שלמים, כדי שרעש של נקודה צפה לא יכריע (5,000 בדיוק אינו "יותר מ-5,000")
+    const tenths = Math.round((current - safe) * 10);
+    const surplus = Math.round(((current - safe) / 100) * revenue);
+    if (tenths >= Math.round(s.raiseThresholdPts * 10) && surplus > s.gapThreshold) {
+      underlying = "lower";
+      proposed = safe;
+    }
+  }
+  const recommendation                 = flags.length ? "review" : underlying;
+  return {
+    clientId: input.clientId, name: input.name, recommendation, currentRatePct: current,
+    newRatePct: f.newRatePct, proposedRatePct: proposed, yearEndGap, flags,
+    steps: buildSteps(input, cal, f, yearEndGap, underlying === "lower" ? { safetyFactor: s.safetyFactor, proposed } : null),
+    brackets: buildBrackets(input, f),
+    reasonHe: buildReason(input, recommendation, underlying, proposed, yearEndGap, flags),
+    clientSummaryHe: buildClientSummary(input, f, yearEndGap),
+    mustReviewBeforeFiling: underlying === "lower" || recommendation === "review",
+  };
+}
+
+// ---- advance-payments/engine/csv.ts
+                                                                        
+
+
+const REC_HE                                 = {
+  raise: "להעלות", lower: "להוריד", keep: "ללא שינוי", review: "לבדוק", excluded: "לא נכלל",
+};
+
+const KIND_HE = { individual: "עצמאי", company: "חברה" };
+
+// לקוח שהחישוב שלו נכשל לא עוצר את האחרים
+function runAll(inputs             )           {
+  return inputs.map((input) => {
+    try {
+      return { input, result: calculateClient(input), error: null };
+    } catch (e) {
+      return { input, result: null, error: e instanceof Error ? e.message : String(e) };
+    }
+  });
+}
+
+function cell(v        )         {
+  return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+function toCsv(rows          )         {
+  const head = ["לקוח", "סוג", "שיעור נוכחי", "שיעור מחושב", "שיעור מוצע", "המלצה", "פער בסוף השנה", "לבדוק", "נימוק"];
+  const lines = [head.join(",")];
+  for (const { input, result, error } of rows) {
+    const r = result;
+    const opt = (n                           ) => (n === null || n === undefined ? "" : pct(n));
+    lines.push([
+      input.name, KIND_HE[input.kind], pct(input.currentRatePct),
+      opt(r?.newRatePct), opt(r?.proposedRatePct),
+      r ? REC_HE[r.recommendation] : "שגיאה",
+      r && r.yearEndGap !== null ? String(r.yearEndGap) : "",
+      r?.mustReviewBeforeFiling ? "כן" : "",
+      r ? r.reasonHe : error ?? "",
+    ].map((v) => cell(String(v))).join(","));
+  }
+  return "﻿" + lines.join("\r\n") + "\r\n";
+}
+
+// ---- לשונית המקדמות. רץ בתוך IIFE אחרי מנוע המקדמות (calculateClient, toCsv, runAll ועוד).
+const advOP = window.OfficePilot;
+const advEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const advYears = [2027, 2026, 2025].filter((y) => { try { getTaxParams(y); return true; } catch { return false; } });
+const ADV_KIND = { "עצמאי": "individual", "חברה": "company" };
+const ADV_PILL = { raise: "red", lower: "blue", keep: "green", review: "amber", excluded: "gray" };
+
+function advStore() {
+  const st = advOP.getState();
+  st.advance = st.advance || {};
+  const a = st.advance;
+  a.settings = a.settings || { forecastYear: advYears.includes(new Date().getFullYear()) ? new Date().getFullYear() : advYears[0], vatIncluded: true, vatRate: 18 };
+  a.clients = a.clients || {};
+  return a;
+}
+function advClientData(id) {
+  const a = advStore();
+  return (a.clients[id] = a.clients[id] || {});
+}
+const advNum = (v) => { const n = Number(String(v ?? "").replace(/[,\s₪%]/g, "")); return Number.isFinite(n) && String(v ?? "").trim() !== "" ? n : undefined; };
+
+// ---------- SUMIT
+const ADV_INCOME = { 0: 1, 1: 1, 5: -1, 6: -1 };
+const ADV_EXPENSE = { 15: 1, 16: 1, 19: -1, 20: -1 };
+function advTypeCode(t) {
+  if (typeof t === "number") return t;
+  const m = String(t ?? "").match(/(\d+)/);
+  return m ? Number(m[1]) : -1;
+}
+async function advSumitList(cred, from, to, types) {
+  const docs = [];
+  for (let start = 0; ; start += 1000) {
+    const res = await fetch("https://api.sumit.co.il/accounting/documents/list/", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Credentials: { CompanyID: Number(cred.companyId), APIKey: cred.apiKey }, DocumentTypes: types,
+        DateFrom: from + "T00:00:00", DateTo: to + "T23:59:59", IncludeDrafts: false, Paging: { StartIndex: start, PageSize: 1000 } }),
+    });
+    const body = await res.json();
+    const ok = body.Status === 0 || String(body.Status).startsWith("Success");
+    if (!ok) throw new Error(body.UserErrorMessage || "SUMIT החזיר שגיאה");
+    docs.push(...(body.Data?.Documents || []));
+    if (!body.Data?.HasNextPage) return docs;
+  }
+}
+async function advSumitTotals(cred, from, to, vatDiv) {
+  const docs = await advSumitList(cred, from, to, [0, 1, 5, 6, 15, 16, 19, 20]);
+  let revenue = 0, expenses = 0, count = 0;
+  for (const d of docs) {
+    if (d.IsDraft) continue;
+    const code = advTypeCode(d.Type);
+    const v = Math.abs(Number(d.CompanyValue) || 0) / vatDiv;
+    if (ADV_INCOME[code]) { revenue += ADV_INCOME[code] * v; count++; }
+    else if (ADV_EXPENSE[code]) { expenses += ADV_EXPENSE[code] * v; count++; }
+  }
+  return { revenue: Math.round(revenue), expenses: Math.round(expenses), count };
+}
+async function advFetchClient(id) {
+  const c = advClientData(id);
+  const s = advStore().settings;
+  if (!c.companyId || !c.apiKey) throw new Error("חסרים מספר חברה ומפתח API של SUMIT");
+  const div = s.vatIncluded ? 1 + s.vatRate / 100 : 1;
+  const by = s.forecastYear - 1;
+  const today = new Date();
+  const ty = today.getFullYear();
+  const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const base = await advSumitTotals(c, `${by}-01-01`, `${by}-12-31`, div);
+  const prev = await advSumitTotals(c, `${by - 1}-01-01`, `${by - 1}-12-31`, div);
+  const ytd = await advSumitTotals(c, `${ty}-01-01`, iso(today), div);
+  const months = today.getMonth() + today.getDate() / new Date(ty, today.getMonth() + 1, 0).getDate();
+  c.sumit = { base: { year: by, revenue: base.revenue, expenses: base.expenses }, prevBaseRevenue: prev.revenue,
+    ytd: { months: Math.round(months * 10) / 10, revenue: ytd.revenue, expenses: ytd.expenses },
+    docs: base.count + prev.count + ytd.count, fetchedAt: iso(today), error: null };
+}
+
+// ---------- מקלט החישוב
+function advInputFor(client) {
+  const kind = ADV_KIND[client.type];
+  const c = advClientData(client.clientId);
+  const s = advStore().settings;
+  if (!kind) return { skip: `לא נכלל: ${client.type}` };
+  const sm = c.sumit || {};
+  const base = c.manualBase && advNum(c.manualBase.revenue) !== undefined
+    ? { year: s.forecastYear - 1, revenue: advNum(c.manualBase.revenue), expenses: advNum(c.manualBase.expenses) ?? 0 }
+    : sm.base;
+  if (advNum(c.currentRatePct) === undefined) return { missing: "חסר שיעור מקדמה נוכחי" };
+  if (!advNum(c.forecastRevenue)) return { missing: "חסרה הכנסה צפויה" };
+  if (!base && !sm.ytd) return { missing: "חסרים נתונים מ-SUMIT" };
+  return { input: {
+    clientId: client.clientId, name: client.name, kind, currentRatePct: advNum(c.currentRatePct),
+    base, prevBaseRevenue: c.manualBase ? undefined : sm.prevBaseRevenue, ytd: sm.ytd,
+    forecastYear: s.forecastYear, forecastRevenue: advNum(c.forecastRevenue),
+    salary: advNum(c.salary), creditPoints: advNum(c.creditPoints),
+    expenseChange: !!c.expenseChange, salaryChanged: !!c.salaryChanged,
+    largeAssetPurchase: !!c.largeAsset, fixedAmountAdvance: !!c.fixed,
+  } };
+}
+function advRow(client) {
+  const p = advInputFor(client);
+  if (p.skip) return { client, status: "skip", text: p.skip };
+  if (p.missing) return { client, status: "missing", text: p.missing };
+  try { return { client, status: "ok", input: p.input, result: calculateClient(p.input) }; }
+  catch (e) { return { client, status: "error", text: e.message, input: p.input }; }
+}
+
+// ---------- המסך
+let advQuery = "";
+let advFilter = { kind: new Set(), rec: new Set() };
+let advPopCol = null;
+const ADV_REC_LABEL = { ...REC_HE, missing: "חסרים נתונים", error: "שגיאה", skip: "לא נכלל" };
+const advRecKey = (r) => (r.status === "ok" ? r.result.recommendation : r.status);
+
+function advRender() {
+  const panel = advOP.panel();
+  if (!panel) return;
+  panel.querySelector("#advance-placeholder")?.remove();
+  if (!panel.querySelector("#adv-root")) panel.insertAdjacentHTML("beforeend", advShell());
+  const a = advStore();
+  const rows = advOP.getClients().map(advRow);
+  const counts = {};
+  rows.forEach((r) => (counts[advRecKey(r)] = (counts[advRecKey(r)] || 0) + 1));
+  panel.querySelector("#adv-summary").innerHTML = [
+    ["סך הלקוחות", rows.length, "gray"], ["להעלות", counts.raise || 0, "red"], ["להוריד", counts.lower || 0, "blue"],
+    ["לבדוק", counts.review || 0, "amber"], ["ללא שינוי", counts.keep || 0, "green"], ["חסרים נתונים", (counts.missing || 0) + (counts.error || 0), "gray"],
+  ].map(([t, n, c]) => `<div class="chip-card ${c}"><b>${n}</b><span>${t}</span></div>`).join("");
+  const q = advQuery.trim();
+  const shown = rows.filter((r) => (!q || r.client.name.includes(q) || String(r.client.entityId || "").includes(q))
+    && (!advFilter.kind.size || advFilter.kind.has(r.client.type))
+    && (!advFilter.rec.size || advFilter.rec.has(advRecKey(r))));
+  panel.querySelectorAll("#adv-root .adv-fh").forEach((b) => b.classList.toggle("on", advFilter[b.dataset.col].size > 0));
+  const body = panel.querySelector("#adv-rows");
+  if (!rows.length) { body.innerHTML = `<tr class="empty"><td colspan="8">אין לקוחות. מוסיפים אותם בלשונית ההגדרות.</td></tr>`; return; }
+  body.innerHTML = shown.map((r) => {
+    const c = advClientData(r.client.clientId);
+    const res = r.result;
+    const key = advRecKey(r);
+    const pill = r.status === "ok" ? ADV_PILL[res.recommendation] : r.status === "skip" ? "gray" : "amber";
+    const gap = res && res.yearEndGap !== null ? (res.yearEndGap > 0 ? `חוב ${ils(res.yearEndGap)}` : res.yearEndGap < 0 ? `עודף ${ils(-res.yearEndGap)}` : "—") : "";
+    const sumit = c.sumit?.fetchedAt ? `<span class="pill green">נשלף ${advEsc(c.sumit.fetchedAt.split("-").reverse().join("/"))}</span>`
+      : c.sumit?.error ? `<span class="pill red">שגיאה</span>` : c.manualBase ? `<span class="pill gray">ידני</span>` : `<span class="pill gray">לא מחובר</span>`;
+    return `<tr class="${res?.mustReviewBeforeFiling ? "amber" : ""}">
+      <td><button class="linkname" data-adv-open="${advEsc(r.client.clientId)}">${advEsc(r.client.name)}</button></td>
+      <td>${advEsc(r.client.type)}</td>
+      <td>${sumit}</td>
+      <td><input class="ltr" style="width:80px" data-adv-field="currentRatePct" data-id="${advEsc(r.client.clientId)}" value="${advEsc(c.currentRatePct ?? "")}" placeholder="%" aria-label="שיעור נוכחי"></td>
+      <td><input class="ltr" style="width:130px" data-adv-field="forecastRevenue" data-id="${advEsc(r.client.clientId)}" value="${advEsc(c.forecastRevenue ?? "")}" placeholder="₪" aria-label="הכנסה צפויה"></td>
+      <td><span class="pill ${pill}">${advEsc(ADV_REC_LABEL[key])}</span>${r.status !== "ok" ? `<div class="sub">${advEsc(r.text)}</div>` : ""}</td>
+      <td class="num">${res && res.proposedRatePct !== null ? pct(res.proposedRatePct) : ""}</td>
+      <td class="num">${gap}</td></tr>`;
+  }).join("") || `<tr class="empty"><td colspan="8">אין לקוחות שמתאימים לחיפוש ולסינון.</td></tr>`;
+  panel.querySelector("#adv-year").value = String(a.settings.forecastYear);
+  panel.querySelector("#adv-vat").checked = !!a.settings.vatIncluded;
+}
+
+function advShell() {
+  return `<div id="adv-root" style="display:grid;gap:16px">
+  <style>.adv-fh{font:inherit;font-weight:600;color:inherit;background:none;border:0;padding:2px 4px;margin:-2px -4px;border-radius:6px;cursor:pointer}
+  .adv-fh.on{color:var(--accent);background:var(--accent-soft)}</style>
+  <div class="card">
+    <h2>מקדמות מס הכנסה</h2>
+    <p class="sub">לכל לקוח: מחברים SUMIT (או מזינים הכנסות והוצאות של שנת הבסיס), מזינים את השיעור הנוכחי ואת ההכנסה הצפויה, והמערכת ממליצה. בפיילוט ההמלצות מוצגות רק למשרד.</p>
+    <div class="toolbar" style="justify-content:flex-start">
+      <div class="field"><label for="adv-year">שנת התחזית</label><select id="adv-year">${advYears.map((y) => `<option value="${y}">${y} (בסיס ${y - 1})</option>`).join("")}</select></div>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="adv-vat"> הסכומים ב-SUMIT כוללים מע"מ (מחלקים ב-1.18)</label>
+    </div>
+  </div>
+  <div class="summary" id="adv-summary"></div>
+  <div class="toolbar">
+    <input id="adv-q" placeholder="חיפוש לפי שם או ת&quot;ז/ח&quot;פ" style="flex:1;min-width:220px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost" id="adv-fetch-all">שליפה מ-SUMIT לכל המחוברים</button>
+      <button class="btn" id="adv-export">ייצוא לאקסל</button>
+    </div>
+  </div>
+  <div id="adv-msg"></div>
+  <div class="table-wrap"><table><thead><tr>
+    <th>לקוח</th><th><button class="adv-fh" data-col="kind">סוג ▾</button></th><th>SUMIT</th><th>שיעור נוכחי</th><th>הכנסה צפויה</th>
+    <th><button class="adv-fh" data-col="rec">המלצה ▾</button></th><th>שיעור מוצע</th><th>פער בסוף השנה</th>
+  </tr></thead><tbody id="adv-rows"></tbody></table></div>
+  <div class="pop" id="adv-pop" hidden></div>
+  </div>`;
+}
+
+function advOpenPop(col, btn) {
+  const pop = document.getElementById("adv-pop");
+  const rows = advOP.getClients().map(advRow);
+  const values = col === "kind" ? [...new Set(rows.map((r) => r.client.type))] : [...new Set(rows.map(advRecKey))];
+  const label = (v) => (col === "kind" ? v : ADV_REC_LABEL[v]);
+  pop.innerHTML = values.map((v) => `<label><input type="checkbox" value="${advEsc(v)}" ${advFilter[col].has(v) ? "checked" : ""}> ${advEsc(label(v))}</label>`).join("")
+    + `<div class="row"><button class="link" id="adv-pop-all">הצג הכל</button></div>`;
+  const r = btn.getBoundingClientRect();
+  pop.style.top = r.bottom + 4 + "px"; pop.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+  pop.hidden = false; advPopCol = col;
+  pop.querySelectorAll("input").forEach((i) => (i.onchange = () => { i.checked ? advFilter[col].add(i.value) : advFilter[col].delete(i.value); advRender(); }));
+  pop.querySelector("#adv-pop-all").onclick = () => { advFilter[col].clear(); pop.hidden = true; advPopCol = null; advRender(); };
+}
+
+function advModal(id) {
+  const client = advOP.getClients().find((c) => c.clientId === id);
+  if (!client) return;
+  const c = advClientData(id);
+  const r = advRow(client);
+  const res = r.result;
+  const by = advStore().settings.forecastYear - 1;
+  const sm = c.sumit;
+  const steps = res ? `<div class="table-wrap"><table style="min-width:0"><thead><tr><th>שלב</th><th>חישוב</th><th>מקור</th></tr></thead><tbody>${
+    res.steps.map((s) => `<tr><td>${advEsc(s.label)}</td><td>${advEsc(s.formula)}</td><td class="sub">${advEsc(c.manualBase && s.source === "sumit" && s.label.includes("שנת הבסיס") ? "הוזן ידנית" : ADV_SOURCE[s.source])}</td></tr>`).join("")}</tbody></table></div>
+    <h3>מדרגות</h3><div class="sub">${res.brackets.map((b) => `${num(b.from)}–${num(b.to)} ב-${pct(b.rate * 100)}: ${ils(b.tax)}`).join("<br>")}</div>` : "";
+  const back = document.createElement("div");
+  back.className = "modal-back"; back.id = "adv-modal";
+  back.innerHTML = `<div class="modal" role="dialog" aria-label="${advEsc(client.name)}" style="width:min(860px,100%)">
+    <h2>${advEsc(client.name)} <span class="sub">${advEsc(client.type)}</span></h2>
+    ${res ? `<div class="note"><b>${advEsc(ADV_REC_LABEL[res.recommendation])}</b>: ${advEsc(res.reasonHe)}</div>` : `<div class="warn">${advEsc(r.text || "")}</div>`}
+    <h3>חיבור ל-SUMIT</h3>
+    <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+      <div class="field"><label>מספר חברה (CompanyID)</label><input class="ltr" id="adv-m-cid" value="${advEsc(c.companyId ?? "")}"></div>
+      <div class="field"><label>מפתח API</label><input class="ltr" id="adv-m-key" type="password" value="${advEsc(c.apiKey ?? "")}"></div>
+    </div>
+    <div class="row"><button class="btn ghost small" id="adv-m-fetch">שמור ושלוף מ-SUMIT</button>
+      <span class="sub" id="adv-m-fetchmsg">${sm?.fetchedAt ? `נשלף ${sm.docs} מסמכים. ${by}: הכנסות ${ils(sm.base.revenue)}, הוצאות ${ils(sm.base.expenses)}. השנה עד היום: ${ils(sm.ytd.revenue)} / ${ils(sm.ytd.expenses)}.` : advEsc(sm?.error || "")}</span></div>
+    <h3>נתונים</h3>
+    <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      <div class="field"><label>הכנסות ${by} (ידני, במקום SUMIT)</label><input class="ltr" id="adv-m-brev" value="${advEsc(c.manualBase?.revenue ?? "")}"></div>
+      <div class="field"><label>הוצאות ${by} (ידני)</label><input class="ltr" id="adv-m-bexp" value="${advEsc(c.manualBase?.expenses ?? "")}"></div>
+      ${client.type === "עצמאי" ? `<div class="field"><label>שכר שנתי מהחברה</label><input class="ltr" id="adv-m-salary" value="${advEsc(c.salary ?? "")}"></div>
+      <div class="field"><label>נקודות זיכוי (ריק = 2.25)</label><input class="ltr" id="adv-m-points" value="${advEsc(c.creditPoints ?? "")}"></div>` : ""}
+    </div>
+    <div class="row" style="gap:16px">
+      <label><input type="checkbox" id="adv-m-fixed" ${c.fixed ? "checked" : ""}> מקדמה בסכום קבוע</label>
+      <label><input type="checkbox" id="adv-m-asset" ${c.largeAsset ? "checked" : ""}> נרכש רכוש קבוע גדול</label>
+      <label><input type="checkbox" id="adv-m-expch" ${c.expenseChange ? "checked" : ""}> צפוי שינוי בהוצאות</label>
+    </div>
+    ${steps}
+    ${res ? `<h3>הסבר ללקוח</h3><div class="note" id="adv-m-summary">${advEsc(res.clientSummaryHe)}</div>` : ""}
+    <div class="row"><button class="btn" id="adv-m-save">שמירה וחישוב</button>${res ? `<button class="btn ghost" id="adv-m-copy">העתקת ההסבר ללקוח</button>` : ""}<button class="btn ghost" id="adv-m-close">סגירה</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  const val = (i) => back.querySelector(i)?.value ?? "";
+  const collect = () => {
+    c.companyId = val("#adv-m-cid").trim(); c.apiKey = val("#adv-m-key").trim();
+    c.manualBase = val("#adv-m-brev").trim() ? { revenue: val("#adv-m-brev"), expenses: val("#adv-m-bexp") } : undefined;
+    if (back.querySelector("#adv-m-salary")) { c.salary = val("#adv-m-salary"); c.creditPoints = val("#adv-m-points"); }
+    c.fixed = back.querySelector("#adv-m-fixed").checked; c.largeAsset = back.querySelector("#adv-m-asset").checked;
+    c.expenseChange = back.querySelector("#adv-m-expch").checked;
+  };
+  const close = () => back.remove();
+  back.querySelector("#adv-m-close").onclick = close;
+  back.onclick = (e) => { if (e.target === back) close(); };
+  back.querySelector("#adv-m-save").onclick = () => { collect(); advOP.save(); close(); advModal(id); };
+  back.querySelector("#adv-m-copy")?.addEventListener("click", () => navigator.clipboard?.writeText(res.clientSummaryHe));
+  back.querySelector("#adv-m-fetch").onclick = async () => {
+    collect();
+    const msg = back.querySelector("#adv-m-fetchmsg");
+    msg.textContent = "שולף מ-SUMIT…";
+    try { await advFetchClient(id); advOP.save(); close(); advModal(id); }
+    catch (e) { c.sumit = { ...(c.sumit || {}), error: "שגיאה בשליפה: " + e.message }; advOP.save(); msg.textContent = c.sumit.error; }
+  };
+}
+const ADV_SOURCE = { sumit: "SUMIT", form: "הוזן", "tax-office": "פקיד השומה", "tax-table": "טבלת מס", calc: "חישוב", default: "ברירת מחדל" };
+
+function advWire() {
+  const panel = advOP.panel();
+  panel.addEventListener("click", async (e) => {
+    const t = e.target;
+    if (t.dataset?.advOpen) return advModal(t.dataset.advOpen);
+    if (t.classList?.contains("adv-fh") && t.closest("#adv-root")) {
+      const pop = document.getElementById("adv-pop");
+      if (advPopCol === t.dataset.col) { pop.hidden = true; advPopCol = null; } else advOpenPop(t.dataset.col, t);
+      return;
+    }
+    if (t.id === "adv-export") {
+      const rows = runAll(advOP.getClients().map((cl) => advInputFor(cl).input).filter(Boolean));
+      const blob = new Blob([toCsv(rows)], { type: "text/csv;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob); link.download = `מקדמות-${advStore().settings.forecastYear}.csv`;
+      document.body.appendChild(link); link.click(); link.remove();
+    }
+    if (t.id === "adv-fetch-all") {
+      const msg = document.getElementById("adv-msg");
+      const list = advOP.getClients().filter((cl) => advClientData(cl.clientId).apiKey);
+      let ok = 0; const bad = [];
+      for (const cl of list) {
+        msg.innerHTML = `<div class="note">שולף ${ok + bad.length + 1} מתוך ${list.length}…</div>`;
+        try { await advFetchClient(cl.clientId); ok++; } catch (err) { bad.push(`${cl.name}: ${err.message}`); advClientData(cl.clientId).sumit = { ...(advClientData(cl.clientId).sumit || {}), error: err.message }; }
+      }
+      advOP.save();
+      msg.innerHTML = `<div class="${bad.length ? "warn" : "note"}">נשלפו ${ok} לקוחות.${bad.length ? " נכשלו: " + advEsc(bad.join("; ")) : ""}</div>`;
+    }
+  });
+  panel.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset?.advField) { advClientData(t.dataset.id)[t.dataset.advField] = t.value; advOP.save(); }
+    if (t.id === "adv-year") { advStore().settings.forecastYear = Number(t.value); advOP.save(); }
+    if (t.id === "adv-vat") { advStore().settings.vatIncluded = t.checked; advOP.save(); }
+  });
+  panel.addEventListener("input", (e) => { if (e.target.id === "adv-q") { advQuery = e.target.value; advRender(); } });
+  document.addEventListener("click", (e) => {
+    if (advPopCol && !e.target.closest("#adv-pop, #adv-root .adv-fh")) { document.getElementById("adv-pop").hidden = true; advPopCol = null; }
+  });
+  advOP.onChange(() => {
+    const focused = document.activeElement;
+    const keep = focused?.dataset?.advField ? [focused.dataset.id, focused.dataset.advField] : null;
+    advRender();
+    if (keep) document.querySelector(`[data-id="${CSS.escape(keep[0])}"][data-adv-field="${keep[1]}"]`)?.focus();
+  });
+}
+
+advRender();
+advWire();
+
+})();
+</script>
+</body>
+</html>
