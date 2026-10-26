@@ -232,10 +232,10 @@ tr.fresh td { background: var(--green-soft); }
       </article>
       <article class="card">
         <h2>גיבוי</h2>
-        <p class="sub">הנתונים נשמרים רק בדפדפן הזה. כדאי לשמור גיבוי מדי פעם.</p>
+        <p class="sub local-only">הנתונים נשמרים רק בדפדפן הזה. כדאי לשמור גיבוי מדי פעם.</p><p class="sub cloud-only" hidden>הנתונים נשמרים בשרת, וכל המשתמשים במשרד רואים אותם. אפשר גם לשמור עותק במחשב.</p>
         <div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="backup">שמור גיבוי</button>
           <label class="btn ghost small" for="f-restore">שחזר מגיבוי</label><input id="f-restore" type="file" accept=".json" hidden>
-          <button class="btn danger small" id="wipe">מחק את כל הנתונים</button></div>
+          <button class="btn danger small local-only" id="wipe">מחק את כל הנתונים</button></div>
         <div id="wipe-confirm" hidden class="warn">למחוק את כל הלקוחות והתוצאות מהדפדפן הזה? <button class="btn danger small" id="wipe-yes">כן, למחוק</button> <button class="btn ghost small" id="wipe-no">ביטול</button></div>
       </article>
     </div>
@@ -278,7 +278,7 @@ tr.fresh td { background: var(--green-soft); }
       <details><summary>מה קורה כשמסמנים "לעדכן שאנחנו מחדשים"?</summary><p>בגרסת הפיילוט נרשם התאריך, אבל המייל ללקוח עוד לא נשלח לבד. אם האישור לא התחדש תוך 14 יום מהסימון, הלקוח מסומן כדחוף, כדי שההבטחה ללקוח לא תישכח.</p></details>
       <details><summary>מה זה "שותפות וירטואלית"?</summary><p>זה מצב של איחוד עוסקים במע"מ. רשות המסים מבקשת לבדוק כל שותף בנפרד, לפי תיק המס שלו.</p></details>
       <details><summary>רוב האישורים פגים בסוף מרץ. האם המערכת תציף אותי בהתראות?</summary><p>לא. האישורים החדשים יוצאים כבר בינואר, ולכן לקוח תקין מתעדכן לבד ויוצא מהרשימה. מי שנשאר ברשימה במרץ הוא לקוח שבאמת לא קיבל אישור. כשרשות המסים מאריכה אישורים בצו, מוסיפים את ההארכה בהגדרות.</p></details>
-      <details><summary>איפה נשמרים הנתונים?</summary><p>בגרסת הפיילוט הנתונים נשמרים בדפדפן שבו עובדים. בהגדרות יש כפתור "שמור גיבוי", וכדאי ללחוץ עליו מדי פעם.</p></details>
+      <details><summary>איפה נשמרים הנתונים?</summary><p>באתר, הנתונים נשמרים בשרת מאובטח, וכל משתמשי המשרד רואים את אותם נתונים. משרד אחר לא רואה אותם. את 6 הספרות מהשובר ואת מפתחות SUMIT שומרים מוצפנים, והם לא חוזרים למסך אף פעם. בגרסה שנפתחת כקובץ במחשב, הנתונים נשמרים רק בדפדפן.</p></details><details><summary>איך מוסיפים משתמש למשרד?</summary><p>מנהל המשרד נכנס ללשונית "הגדרות ולקוחות", לכרטיס "משתמשים במשרד", וממלא שם משתמש וסיסמה. אחרי היצירה מופיעים פרטי הכניסה, עם כפתורים להעתקה ולשליחה ב-WhatsApp או במייל. בכפתור "סיסמה חדשה" אפשר לקבוע סיסמה חדשה למי ששכח.</p></details>
       <details><summary>ומה עם המקדמות?</summary><p>שירות המקדמות ייכנס ללשונית "מקדמות" במוצר הזה, עם אותה רשימת לקוחות.</p></details>
     </article>
   </section>
