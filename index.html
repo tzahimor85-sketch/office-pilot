@@ -1715,6 +1715,9 @@ function advTypeCode(t) {
   const m = String(t ?? "").match(/(\d+)/);
   return m ? Number(m[1]) : -1;
 }
+// הודעות השרת המשותף באנגלית מתורגמות לעברית לפני שמוצגות
+const ADV_SERVER_ERR = { "no SUMIT key for this client": "הלקוח לא מחובר ל-SUMIT", "path not allowed": "פעולה לא מורשית מול SUMIT" };
+const advErrText = (e) => ADV_SERVER_ERR[e?.message] || e?.message || String(e);
 // המפתח לא נמצא כאן. בענן הוא שמור מוצפן בשרת, והשרת מוסיף את Credentials
 async function advSumitList(id, from, to, types) {
   const docs = [];
@@ -1961,7 +1964,7 @@ function advModal(id) {
       msg.textContent = "שולף מ-SUMIT…";
       await advFetchClient(id); advOP.save(); close(); advModal(id);
     }
-    catch (e) { c.sumit = { ...(c.sumit || {}), error: "שגיאה בשליפה: " + e.message }; advOP.save(); msg.textContent = c.sumit.error; }
+    catch (e) { c.sumit = { ...(c.sumit || {}), error: "שגיאה בשליפה: " + advErrText(e) }; advOP.save(); msg.textContent = c.sumit.error; }
   };
 }
 const ADV_SOURCE = { sumit: "SUMIT", form: "הוזן", "tax-office": "פקיד השומה", "tax-table": "טבלת מס", calc: "חישוב", default: "ברירת מחדל" };
@@ -1991,7 +1994,7 @@ function advWire() {
       let ok = 0; const bad = [];
       for (const cl of list) {
         msg.innerHTML = `<div class="note">שולף ${ok + bad.length + 1} מתוך ${list.length}…</div>`;
-        try { await advFetchClient(cl.clientId); ok++; } catch (err) { bad.push(`${cl.name}: ${err.message}`); advClientData(cl.clientId).sumit = { ...(advClientData(cl.clientId).sumit || {}), error: err.message }; }
+        try { await advFetchClient(cl.clientId); ok++; } catch (err) { bad.push(`${cl.name}: ${advErrText(err)}`); advClientData(cl.clientId).sumit = { ...(advClientData(cl.clientId).sumit || {}), error: advErrText(err) }; }
       }
       advOP.save();
       msg.innerHTML = `<div class="${bad.length ? "warn" : "note"}">נשלפו ${ok} לקוחות.${bad.length ? " נכשלו: " + advEsc(bad.join("; ")) : ""}</div>`;
