@@ -1806,6 +1806,255 @@ function toCsv(rows          )         {
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
 
+// ---- advance-payments/engine/xlsx.ts
+// כותב קובץ xlsx קטן בלי ספריות: XML של גיליונות בתוך zip לא דחוס. רץ בדפדפן, ב-Node וב-Deno.
+
+                   
+        
+          
+          
+                                                    
+                                                                 
+                                                                          
+
+const XSTYLE_ID                         = { money: 1, pct: 2, bold: 3, title: 4, wrap: 5 };
+
+const xEsc = (s        ) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+function xColName(i        )         {
+  let s = "";
+  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
+}
+
+function xCellXml(c       , ref        )         {
+  if (c === null || c === undefined) return "";
+  const o = typeof c === "object" ? c : { v: c };
+  const s = o.s ? ` s="${XSTYLE_ID[o.s]}"` : "";
+  if (o.f !== undefined) {
+    const v = typeof o.v === "number" && Number.isFinite(o.v) ? `<v>${o.v}</v>` : "";
+    const t = typeof o.v === "string" ? ` t="str"` : "";
+    return `<c r="${ref}"${s}${t}><f>${xEsc(o.f)}</f>${typeof o.v === "string" ? `<v>${xEsc(o.v)}</v>` : v}</c>`;
+  }
+  if (typeof o.v === "number") return Number.isFinite(o.v) ? `<c r="${ref}"${s}><v>${o.v}</v></c>` : "";
+  if (typeof o.v === "string") return `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${xEsc(o.v)}</t></is></c>`;
+  return "";
+}
+
+function xSheetXml(sh        )         {
+  const cols = sh.widths?.length
+    ? `<cols>${sh.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>` : "";
+  const rows = sh.rows.map((r, ri) => `<row r="${ri + 1}">${r.map((c, ci) => xCellXml(c, xColName(ci) + (ri + 1))).join("")}</row>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView rightToLeft="1" workbookViewId="0"/></sheetViews>${cols}<sheetData>${rows}</sheetData></worksheet>`;
+}
+
+const XSTYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0"/><numFmt numFmtId="165" formatCode="0.00%"/></numFmts>
+<fonts count="3"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font><font><b/><sz val="14"/><name val="Arial"/></font></fonts>
+<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf></cellXfs>
+</styleSheet>`;
+
+function xSafeSheetName(name        , used             )         {
+  let base = name.replace(/[\[\]:*?\/\\']/g, " ").trim().slice(0, 28) || "גיליון";
+  let n = base, i = 2;
+  while (used.has(n)) n = `${base.slice(0, 26)} ${i++}`;
+  used.add(n);
+  return n;
+}
+
+// ---- zip בלי דחיסה (STORE)
+const XCRC = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+function xCrc32(b            )         {
+  let c = 0xffffffff;
+  for (let i = 0; i < b.length; i++) c = XCRC[(c ^ b[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function xZip(files                                      )             {
+  const enc = new TextEncoder();
+  const parts               = [];
+  const central               = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name);
+    const crc = xCrc32(f.data);
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
+    local.setUint32(14, crc, true); local.setUint32(18, f.data.length, true); local.setUint32(22, f.data.length, true);
+    local.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(local.buffer), name, f.data);
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true); cd.setUint16(8, 0x0800, true);
+    cd.setUint32(16, crc, true); cd.setUint32(20, f.data.length, true); cd.setUint32(24, f.data.length, true);
+    cd.setUint16(28, name.length, true); cd.setUint32(42, offset, true);
+    central.push(new Uint8Array(cd.buffer), name);
+    offset += 30 + name.length + f.data.length;
+  }
+  const cdSize = central.reduce((s, b) => s + b.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  const all = [...parts, ...central, new Uint8Array(end.buffer)];
+  const out = new Uint8Array(all.reduce((s, b) => s + b.length, 0));
+  let p = 0;
+  for (const b of all) { out.set(b, p); p += b.length; }
+  return out;
+}
+
+function makeXlsx(sheets          )             {
+  const enc = new TextEncoder();
+  const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${
+    sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><workbookPr/><bookViews><workbookView/></bookViews><sheets>${
+    sheets.map((s, i) => `<sheet name="${xEsc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`;
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${
+    sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")
+  }<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  return xZip([
+    { name: "[Content_Types].xml", data: enc.encode(ct) },
+    { name: "_rels/.rels", data: enc.encode(rels) },
+    { name: "xl/workbook.xml", data: enc.encode(wb) },
+    { name: "xl/_rels/workbook.xml.rels", data: enc.encode(wbRels) },
+    { name: "xl/styles.xml", data: enc.encode(XSTYLES) },
+    ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: enc.encode(xSheetXml(s)) })),
+  ]);
+}
+
+// ---- advance-payments/engine/workbook.ts
+                                                           
+                                       
+                                               
+
+
+
+
+
+// גיליון מדרגות: לכל שנה עמודת "רצפה" ועמודת "תוספת שיעור", כדי שמס לפי מדרגות יהיה SUMPRODUCT אחד
+function wbBracketsSheet(years          )                                                                                               {
+  const rows            = [[{ v: "מדרגות מס לפי שנה", s: "title" }], []];
+  const refs                                                                     = {};
+  for (const y of years) {
+    const p = getTaxParams(y);
+    rows.push([{ v: `שנת ${y}`, s: "bold" }, { v: "מהסכום", s: "bold" }, { v: "שיעור", s: "bold" }, { v: "תוספת לשיעור", s: "bold" }]);
+    const first = rows.length + 1; // השורה הבאה בגיליון (מספור מ-1)
+    let lower = 0, prev = 0;
+    for (const b of p.brackets) {
+      rows.push([null, { v: lower, s: "money" }, { v: b.rate, s: "pct" }, { v: Math.round((b.rate - prev) * 1e6) / 1e6, s: "pct" }]);
+      prev = b.rate; lower = b.upTo;
+    }
+    const last = first + p.brackets.length - 1;
+    rows.push([{ v: "ערך נקודת זיכוי" }, { v: p.creditPointValue, s: "money" }]);
+    rows.push([{ v: "מס חברות" }, { v: p.corporateRate, s: "pct" }]);
+    refs[y] = { L: `'מדרגות'!$B$${first}:$B$${last}`, D: `'מדרגות'!$D$${first}:$D$${last}`, pt: `'מדרגות'!$B$${last + 1}`, corp: `'מדרגות'!$B$${last + 2}` };
+    rows.push([]);
+  }
+  return { sheet: { name: "מדרגות", rows, widths: [18, 14, 10, 14] }, ref: (y) => refs[y] };
+}
+
+const wbGross = (x        , rf                          ) => `SUMPRODUCT((${x}>${rf.L})*(${x}-${rf.L})*${rf.D})`;
+const wbInd = (x        , pts        , rf                                      ) => `MAX(0,${wbGross(x, rf)}-${pts}*${rf.pt})`;
+
+function wbClientSheet(name        , input           , row        , rfOf                                                                   )         {
+  const res = row.result ;
+  const isInd = input.kind === "individual";
+  const base = input.base;
+  const cal = base
+    ? calibrate({ kind: input.kind, currentRatePct: input.currentRatePct, base, creditPoints: input.creditPoints ?? DEFAULT_CREDIT_POINTS, salary: input.salary ?? 0 })
+    : { baseYear: input.forecastYear - 1, bookProfit: 0, actualTax: 0, taxableIncome: 0, adjustment: 0, adjustmentPct: 0, calibrated: false };
+  const f = forecast(input, cal, DEFAULT_SETTINGS);
+  const by = rfOf(cal.baseYear), fy = rfOf(input.forecastYear);
+  const L = (label        , cell       , note = "")          => [{ v: label }, cell, note ? { v: note, s: "wrap" } : null];
+  const rows            = [
+    [{ v: `${input.name}: חישוב מקדמה ל-${input.forecastYear}`, s: "title" }],
+    [{ v: `${KIND_HE[input.kind]} · המלצה: ${REC_HE[res.recommendation]}`, s: "bold" }],
+    [{ v: "שלב", s: "bold" }, { v: "סכום", s: "bold" }, { v: "הסבר", s: "bold" }],
+    /* 4 */ L(`הכנסות ${cal.baseYear}`, { v: base?.revenue ?? 0, s: "money" }, "מ-SUMIT, בלי מע\"מ"),
+    /* 5 */ L(`הוצאות ${cal.baseYear}`, { v: base?.expenses ?? 0, s: "money" }, "מ-SUMIT, בלי התאמות למס"),
+    /* 6 */ L("רווח לפי SUMIT", { f: "B4-B5", v: cal.bookProfit, s: "money" }),
+    /* 7 */ L("שיעור מקדמה נוכחי", { v: input.currentRatePct / 100, s: "pct" }, "השיעור שפקיד השומה קבע"),
+    /* 8 */ L("מס לפי השיעור הנוכחי", { f: "B4*B7", v: cal.actualTax, s: "money" }),
+    /* 9 */ L("שכר שנתי מהחברה", { v: input.salary ?? 0, s: "money" }, isInd ? "רק כשהבעלים מושך שכר" : "לא רלוונטי לחברה"),
+    /* 10 */ L("נקודות זיכוי", { v: input.creditPoints ?? DEFAULT_CREDIT_POINTS }, input.creditPoints === undefined ? "ברירת מחדל" : ""),
+    /* 11 */ L("הכנסה חייבת לפי השומה", cal.calibrated
+      ? (isInd ? { v: cal.taxableIncome, s: "money" } : { f: `B8/${by.corp}`, v: cal.taxableIncome, s: "money" })
+      : { f: "B6", v: cal.bookProfit, s: "money" },
+      cal.calibrated ? (isInd ? "חושב לאחור לפי המדרגות. הבדיקה בשורה הבאה" : "המס חלקי מס חברות") : "אין כיול: שיעור 0 או הפסד"),
+    /* 12 */ L("בדיקה: המס על ההכנסה החייבת", isInd
+      ? { f: `${wbInd("(B9+B11)", "B10", by)}-${wbInd("B9", "B10", by)}`, v: cal.calibrated ? cal.actualTax : undefined, s: "money" }
+      : { f: `B11*${by.corp}`, v: cal.calibrated ? cal.actualTax : undefined, s: "money" }, "אמור להיות שווה לשורה 8"),
+    /* 13 */ L("סכום התאמה (ה\"ת)", cal.calibrated ? { f: "B11-B6", v: cal.adjustment, s: "money" } : { v: 0, s: "money" }, "מה שהשומה מוסיפה או מורידה מעבר ל-SUMIT"),
+    /* 14 */ L(`הכנסה צפויה ${input.forecastYear}`, { v: input.forecastRevenue, s: "money" }, "מהלקוח"),
+    /* 15 */ L("יחס הוצאות", { v: f.expenseRatio, s: "pct" }, f.expenseRatioSource === "ytd" ? "מהשנה הנוכחית עד היום" : "משנת הבסיס"),
+    /* 16 */ L("הוצאות צפויות", { f: "B14*B15", v: f.forecastExpenses, s: "money" }),
+    /* 17 */ L("הכנסה חייבת צפויה", { f: "B14-B16+B13", v: f.taxableIncome, s: "money" }),
+    /* 18 */ L("מס צפוי", isInd
+      ? { f: `${wbInd("(B9+MAX(0,B17))", "B10", fy)}-${wbInd("B9", "B10", fy)}`, v: f.tax, s: "money" }
+      : { f: `MAX(0,B17)*${fy.corp}`, v: f.tax, s: "money" }, `לפי מדרגות ${input.forecastYear}`),
+    /* 19 */ L("שיעור לפני עיגול", { f: "B18/B14", v: f.rawRatePct / 100, s: "pct" }),
+    /* 20 */ L("שיעור חדש", { f: "ROUNDUP(ROUND(B19*1000,6),0)/1000", v: f.newRatePct / 100, s: "pct" }, "מעוגל כלפי מעלה לעשירית האחוז"),
+    /* 21 */ L("פער בסוף השנה", { f: "(B20-B7)*B14", v: res.yearEndGap ?? 0, s: "money" }, "חיובי: חוב צפוי. שלילי: עודף"),
+    /* 22 */ L("שיעור מוצע", { v: (res.proposedRatePct ?? 0) / 100, s: "pct" }, res.recommendation === "lower" || res.mustReviewBeforeFiling ? "להוריד או לבדוק: לבדוק לפני הגשה" : ""),
+    [],
+    [{ v: "הנימוק", s: "bold" }],
+    [{ v: res.reasonHe, s: "wrap" }],
+  ];
+  return { name, rows, widths: [28, 16, 48] };
+}
+
+// חוברת אקסל: גיליון סיכום, גיליון חישוב עם נוסחאות לכל לקוח, וגיליון מדרגות
+function buildAdvanceWorkbook(rows          )             {
+  const ok = rows.filter((r) => r.result && r.result.recommendation !== "excluded");
+  const years = [...new Set(ok.flatMap((r) => [r.input.base?.year ?? r.input.forecastYear - 1, r.input.forecastYear]))]
+    .filter((y) => { try { getTaxParams(y); return true; } catch { return false; } }).sort();
+  const br = wbBracketsSheet(years);
+  const used = new Set(["סיכום", "מדרגות"]);
+  const clientSheets           = [];
+  const summary            = [
+    [{ v: "מקדמות: סיכום המלצות", s: "title" }],
+    ["לקוח", "סוג", "שיעור נוכחי", "שיעור מחושב", "שיעור מוצע", "המלצה", "פער בסוף השנה", "לבדוק לפני הגשה", "נימוק", "גיליון החישוב"].map((v) => ({ v, s: "bold"          })),
+  ];
+  for (const r of rows) {
+    const res = r.result;
+    let sheetName = "";
+    if (res && res.recommendation !== "excluded") {
+      sheetName = xSafeSheetName(r.input.name, used);
+      clientSheets.push(wbClientSheet(sheetName, r.input, r, br.ref));
+    }
+    const ref = (cell        , fallback               , style                 ) =>
+      sheetName ? { f: `'${sheetName}'!${cell}`, v: fallback ?? undefined, s: style } : (fallback === null ? null : { v: fallback, s: style });
+    summary.push([
+      r.input.name, KIND_HE[r.input.kind],
+      { v: r.input.currentRatePct / 100, s: "pct" },
+      ref("B20", res?.newRatePct != null ? res.newRatePct / 100 : null, "pct"),
+      res?.proposedRatePct != null ? { v: res.proposedRatePct / 100, s: "pct" } : null,
+      res ? REC_HE[res.recommendation] : "שגיאה",
+      ref("B21", res?.yearEndGap ?? null, "money"),
+      res?.mustReviewBeforeFiling ? "כן" : "",
+      { v: res ? res.reasonHe : r.error ?? "", s: "wrap" },
+      sheetName,
+    ]);
+  }
+  return makeXlsx([{ name: "סיכום", rows: summary, widths: [24, 10, 12, 12, 12, 12, 14, 12, 70, 18] }, ...clientSheets, br.sheet]);
+}
+
 // ---- לשונית המקדמות. רץ בתוך IIFE אחרי מנוע המקדמות (calculateClient, toCsv, runAll ועוד).
 const advOP = window.OfficePilot;
 const advEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -2035,7 +2284,7 @@ function advShell() {
     <input id="adv-q" placeholder="חיפוש לפי שם או ת&quot;ז/ח&quot;פ" style="flex:1;min-width:220px">
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn ghost" id="adv-fetch-all">שליפה מ-SUMIT לכל המחוברים</button>
-      <button class="btn" id="adv-export">ייצוא לאקסל</button>
+      <button class="btn" id="adv-export">אקסל החישוב</button>
     </div>
   </div>
   <div id="adv-msg"></div>
@@ -2173,10 +2422,10 @@ function advWire() {
       return;
     }
     if (t.id === "adv-export") {
-      const rows = runAll(advOP.getClients().map((cl) => advInputFor(cl).input).filter(Boolean));
-      const blob = new Blob([toCsv(rows)], { type: "text/csv;charset=utf-8" });
+      const att = advOP.advanceAttachment();
+      const blob = new Blob([att.bytes], { type: att.mime });
       const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob); link.download = `מקדמות-${advStore().settings.forecastYear}.csv`;
+      link.href = URL.createObjectURL(blob); link.download = att.filename;
       document.body.appendChild(link); link.click(); link.remove();
     }
     if (t.dataset?.advRun) {
@@ -2231,6 +2480,16 @@ advOP.advanceDigest = () => {
   if (groups.lower.length) lines.push(`להוריד מקדמה, אחרי בדיקה: ${groups.lower.join(", ")}.`);
   if (groups.review.length) lines.push(`לבדוק לפני החלטה: ${groups.review.join(", ")}.`);
   return lines;
+};
+
+// קובץ האקסל של החישוב, לצירוף למייל המקדמות. מחזיר גם base64, לשליחה מהשרת
+advOP.advanceAttachment = () => {
+  const rows = runAll(advOP.getClients().map((cl) => advInputFor(cl).input).filter(Boolean));
+  const bytes = buildAdvanceWorkbook(rows);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return { filename: `מקדמות-${advStore().settings.forecastYear}.xlsx`, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    bytes, base64: btoa(bin), clients: rows.filter((r) => r.result).length };
 };
 
 // הסבר החישוב בלשונית העזרה. הדוגמה מחושבת במנוע עצמו, כך שהמספרים תמיד תואמים
