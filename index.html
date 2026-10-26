@@ -156,6 +156,13 @@ tr.fresh td { background: var(--green-soft); }
 
   <section class="panel" id="p-update" hidden>
     <div class="cards">
+      <article class="card cloud-only" hidden>
+        <h2>עדכון אוטומטי</h2>
+        <p>לחיצה אחת: המערכת נכנסת למערכת 1000 של רשות המסים עם פרטי המשרד, מעלה את רשימת הלקוחות ומעדכנת את כולם. העדכון רץ גם לבד פעם בשבוע.</p>
+        <div><button class="btn" id="auto-run">עדכן אוטומטית עכשיו</button></div>
+        <div id="auto-status" class="sub"></div>
+        <p class="sub" id="runner-seen"></p>
+      </article>
       <article class="card">
         <h2>עדכון חצי אוטומטי</h2>
         <ol class="steps">
@@ -1260,6 +1267,37 @@ $("s-tax-save").onclick = async () => {
   } catch (e) { $("s-tax-msg").textContent = e.message; }
 };
 
+// ---------- automatic runs (cloud): the page queues a run; the runner on an Israeli computer picks it up
+let runPoll = null, seenRun = null;
+const RUN_LABEL = { queued: "ממתין להרצה", running: "רץ עכשיו מול רשות המסים", done: "הסתיים", error: "נכשל" };
+async function refreshRuns() {
+  const [{ data: runs }, { data: seen }] = await Promise.all([
+    sb.from("op_runs").select("id, kind, status, message, requested_at, finished_at").eq("office_id", officeId).order("requested_at", { ascending: false }).limit(3),
+    sb.from("op_runner").select("seen_at").maybeSingle(),
+  ]);
+  const last = runs && runs[0];
+  const when = (t) => t ? new Date(t).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" }) : "";
+  $("auto-status").innerHTML = last
+    ? `<div class="${last.status === "error" ? "warn" : "note"}"><b>${RUN_LABEL[last.status] || last.status}</b>${last.kind === "weekly" ? " (העדכון השבועי)" : ""} · ${when(last.finished_at || last.requested_at)}${last.message ? `<br>${esc(last.message)}` : ""}</div>`
+    : "עוד לא הורץ עדכון אוטומטי.";
+  const fresh = seen && Date.now() - Date.parse(seen.seen_at) < 10 * 60000;
+  $("runner-seen").textContent = seen ? (fresh ? "המחשב שמריץ את העדכונים מחובר." : `המחשב שמריץ את העדכונים לא היה מחובר מאז ${when(seen.seen_at)}. הבקשה תרוץ כשהוא יתחבר.`) : "";
+  const busy = last && (last.status === "queued" || last.status === "running");
+  $("auto-run").disabled = !!busy;
+  clearTimeout(runPoll);
+  if (busy) runPoll = setTimeout(async () => { await refreshRuns(); }, 10000);
+  // reload the office data once each time a newer run finishes (not on the first look)
+  const lastDone = (runs || []).find((r) => r.status === "done");
+  if (seenRun === null) seenRun = lastDone ? lastDone.id : -1;
+  else if (lastDone && lastDone.id !== seenRun) { seenRun = lastDone.id; await pullCloud(); }
+}
+$("auto-run").onclick = async () => {
+  const { data: { user } } = await sb.auth.getUser();
+  const { error } = await sb.from("op_runs").insert({ office_id: officeId, requested_by: user.id });
+  if (error) { $("auto-status").textContent = "לא הצלחתי לבקש עדכון: " + error.message; return; }
+  refreshRuns();
+};
+
 // ---------- boot
 async function enterOffice() {
   const { data: m, error } = await sb.from("op_members").select("office_id, role, op_offices(name)").limit(1).maybeSingle();
@@ -1275,6 +1313,7 @@ async function enterOffice() {
   await pullCloud();
   if (myRole === "admin") loadUsers();
   refreshTaxStatus();
+  refreshRuns();
   if (!state.office.name && m.op_offices) { state.office.name = m.op_offices.name; }
   $("login").hidden = true;
   $("user-line").hidden = false;
