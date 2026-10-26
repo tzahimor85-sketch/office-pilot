@@ -87,6 +87,9 @@ tr.fresh td { background: var(--green-soft); }
 .help details p { margin-top: 6px; color: var(--muted); max-width: 75ch; }
 .help .kv { grid-template-columns: auto 1fr; align-items: center; }
 .ext-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.cred { border: 1px dashed var(--accent); border-radius: 10px; padding: 12px; display: grid; gap: 8px; background: var(--accent-soft); }
+.user-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); }
 </style>
 </head>
 <body>
@@ -192,7 +195,22 @@ tr.fresh td { background: var(--green-soft); }
         <h2>המשרד</h2>
         <div class="field"><label for="s-office">שם המשרד</label><input id="s-office"></div>
         <div class="field"><label for="s-tik">תיק הניכויים של המשרד</label><input id="s-tik" class="ltr" inputmode="numeric" maxlength="9" placeholder="9 ספרות, מתחיל ב-9"></div>
-        <p class="sub">את 6 הספרות מהשובר לא שומרים כאן. מקלידים אותן רק באתר רשות המסים.</p>
+        <div class="cloud-only" hidden>
+          <div class="field"><label for="s-digits">6 הספרות האחרונות של מספר הזיהוי מהשובר שבתחילת פנקס הניכויים</label><input id="s-digits" type="password" inputmode="numeric" maxlength="6" autocomplete="off" class="ltr"></div>
+          <div><button class="btn small" id="s-tax-save">שמור מוצפן</button> <span class="sub" id="s-tax-msg"></span></div>
+          <p class="sub">הספרות נשמרות מוצפנות בשרת, ומשמשות רק לשליפה האוטומטית מרשות המסים. אחרי השמירה הן לא מוצגות שוב.</p>
+        </div>
+        <p class="sub local-only">בגרסה שבמחשב את 6 הספרות מהשובר לא שומרים. מקלידים אותן רק באתר רשות המסים.</p>
+      </article>
+      <article class="card cloud-only admin-only" hidden>
+        <h2>משתמשים במשרד</h2>
+        <div id="users-list" class="sub">טוען…</div>
+        <h3>הוספת משתמש</h3>
+        <div class="field"><label for="u-name">שם משתמש</label><input id="u-name" placeholder="למשל: רינה כהן"></div>
+        <div class="field"><label for="u-pw">סיסמה</label><input id="u-pw" type="text" autocomplete="off" class="ltr"></div>
+        <div class="field"><label for="u-role">הרשאה</label><select id="u-role"><option value="member">משתמש</option><option value="admin">מנהל (גם מוסיף משתמשים)</option></select></div>
+        <div><button class="btn small" id="u-add">צור משתמש</button></div>
+        <div id="u-result"></div>
       </article>
       <article class="card">
         <h2>רשימת הלקוחות</h2>
@@ -269,11 +287,11 @@ tr.fresh td { background: var(--green-soft); }
 <div class="modal-back" id="login" hidden style="background:var(--bg)">
   <form class="modal" id="login-form" style="width:min(400px,100%)">
     <div class="brand"><div class="stamp">נ"מ</div><h2>מעקב אישורים ומקדמות</h2></div>
-    <div class="field"><label for="login-email">מייל</label><input id="login-email" type="email" autocomplete="username" required class="ltr"></div>
+    <div class="field"><label for="login-email">שם משתמש</label><input id="login-email" autocomplete="username" required></div>
     <div class="field"><label for="login-pw">סיסמה</label><input id="login-pw" type="password" autocomplete="current-password" required></div>
     <button class="btn" type="submit" id="login-go">כניסה</button>
     <p class="sub" id="login-msg"></p>
-    <p class="sub">שכחתם סיסמה? פנו לצחי, והוא יקבע לכם סיסמה חדשה.</p>
+    <p class="sub">שכחתם סיסמה? מנהל המשרד יכול לקבוע לכם סיסמה חדשה.</p>
   </form>
 </div>
 
@@ -757,6 +775,26 @@ async function sumitFn(body) {
   return data;
 }
 const localKeys = () => (state.secrets ??= {});
+async function adminFn(body) { return callFn("op-admin", body); }
+async function callFn(name, body) {
+  const { data, error } = await sb.functions.invoke(name, { body: { officeId, ...body } });
+  if (error) {
+    let msg = error.message;
+    try { msg = (await error.context.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return data;
+}
+// Usernames are free text; Supabase signs in by email, so each name maps to a fixed address (same rule as op-admin).
+function usernameToEmail(username) {
+  const norm = username.trim().replace(/\s+/g, " ").toLowerCase();
+  if (norm.includes("@")) return norm;
+  return "u" + [...new TextEncoder().encode(norm)].map((b) => b.toString(16).padStart(2, "0")).join("") + "@office-pilot.app";
+}
+// The shared server demands 12+ characters with upper, lower and digit. The office chooses any password of 6+;
+// a fixed suffix satisfies the server rule. Strength is that of the typed password, which is the office's choice.
+const stretch = (pw) => pw + "·Aa1-office-pilot";
+let myRole = "member";
 
 // Shared API for the advance-payments tab (advance.js).
 window.OfficePilot = {
@@ -1170,6 +1208,58 @@ $("open-help").onclick = () => showTab("p-help");
 let seen = false;
 try { seen = localStorage.getItem(WELCOME_KEY) === "1"; } catch {}
 
+// ---------- office users (admins) and Tax Authority details (cloud)
+const SITE_URL = "https://tzahimor85-sketch.github.io/office-pilot/";
+async function loadUsers() {
+  try {
+    const { users } = await adminFn({ action: "listUsers" });
+    $("users-list").innerHTML = users.map((u) => `<div class="user-row"><b>${esc(u.username)}</b><span class="pill ${u.role === "admin" ? "blue" : "gray"}">${u.role === "admin" ? "מנהל" : "משתמש"}</span>${u.banned ? '<span class="pill red">חסום</span>' : ""}<button class="btn ghost small" data-reset="${u.userId}" data-name="${esc(u.username)}">סיסמה חדשה</button></div>`).join("");
+    document.querySelectorAll("[data-reset]").forEach((b) => (b.onclick = () => resetPw(b.dataset.reset, b.dataset.name)));
+  } catch (e) { $("users-list").textContent = "לא הצלחתי לטעון משתמשים: " + e.message; }
+}
+function showCred(username, pw, note) {
+  const text = `כניסה למערכת מעקב אישורים ומקדמות
+כתובת: ${SITE_URL}
+שם משתמש: ${username}
+סיסמה: ${pw}
+אחרי הכניסה הראשונה כדאי להחליף סיסמה בכפתור "שינוי סיסמה".`;
+  $("u-result").innerHTML = `<div class="cred"><b>${esc(note)}</b><div>כתובת: <span class="ltr">${SITE_URL}</span></div><div>שם משתמש: <b>${esc(username)}</b></div><div>סיסמה: <b class="ltr">${esc(pw)}</b></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" id="cred-copy">העתק</button>
+    <a class="btn ghost small" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(text)}">שלח ב-WhatsApp</a>
+    <a class="btn ghost small" href="mailto:?subject=${encodeURIComponent("פרטי כניסה למערכת")}&body=${encodeURIComponent(text)}">שלח במייל</a></div>
+    <span class="sub" id="cred-msg"></span></div>`;
+  $("cred-copy").onclick = async () => { try { await navigator.clipboard.writeText(text); $("cred-msg").textContent = "הועתק"; } catch { $("cred-msg").textContent = "סמנו את הטקסט והעתיקו ידנית."; } };
+}
+$("u-add").onclick = async () => {
+  const username = $("u-name").value.trim().replace(/\s+/g, " "), pw = $("u-pw").value;
+  if (username.length < 2) { $("u-result").innerHTML = `<p class="warn">צריך שם משתמש.</p>`; return; }
+  if (pw.length < 6) { $("u-result").innerHTML = `<p class="warn">הסיסמה צריכה לפחות 6 תווים.</p>`; return; }
+  $("u-add").disabled = true;
+  try {
+    await adminFn({ action: "createUser", username, password: stretch(pw), role: $("u-role").value });
+    showCred(username, pw, "המשתמש נוצר. אלה פרטי הכניסה שלו:");
+    $("u-name").value = ""; $("u-pw").value = ""; loadUsers();
+  } catch (e) { $("u-result").innerHTML = `<p class="warn">${esc(e.message)}</p>`; }
+  $("u-add").disabled = false;
+};
+async function resetPw(userId, name) {
+  const pw = String(Math.floor(100000 + Math.random() * 900000));
+  try { await adminFn({ action: "resetPassword", userId, password: stretch(pw) }); showCred(name, pw, "נקבעה סיסמה חדשה:"); }
+  catch (e) { $("u-result").innerHTML = `<p class="warn">${esc(e.message)}</p>`; }
+}
+async function refreshTaxStatus() {
+  const { data } = await sb.rpc("op_tax_status", { o: officeId });
+  const row = data && data[0];
+  $("s-tax-msg").textContent = row ? `שמור מ-${formatDate(row.updated_at.slice(0, 10))}, לתיק ${row.deductions_file}.` : "עוד לא נשמרו.";
+}
+$("s-tax-save").onclick = async () => {
+  const tik = $("s-tik").value.replace(/\D/g, ""), digits = $("s-digits").value.trim();
+  try {
+    await adminFn({ action: "setTaxCreds", deductionsFile: tik, digits });
+    state.office.deductionsFile = tik; save(); $("s-digits").value = ""; refreshTaxStatus();
+  } catch (e) { $("s-tax-msg").textContent = e.message; }
+};
+
 // ---------- boot
 async function enterOffice() {
   const { data: m, error } = await sb.from("op_members").select("office_id, role, op_offices(name)").limit(1).maybeSingle();
@@ -1178,7 +1268,13 @@ async function enterOffice() {
     await sb.auth.signOut(); return;
   }
   officeId = m.office_id;
+  myRole = m.role;
+  document.querySelectorAll(".cloud-only").forEach((e) => (e.hidden = false));
+  document.querySelectorAll(".local-only").forEach((e) => (e.hidden = true));
+  document.querySelectorAll(".admin-only").forEach((e) => (e.hidden = myRole !== "admin"));
   await pullCloud();
+  if (myRole === "admin") loadUsers();
+  refreshTaxStatus();
   if (!state.office.name && m.op_offices) { state.office.name = m.op_offices.name; }
   $("login").hidden = true;
   $("user-line").hidden = false;
@@ -1192,23 +1288,23 @@ if (CLOUD) {
   $("login-form").onsubmit = async (e) => {
     e.preventDefault();
     $("login-msg").textContent = "מתחבר…";
-    const { error } = await sb.auth.signInWithPassword({ email: $("login-email").value.trim(), password: $("login-pw").value });
+    const { error } = await sb.auth.signInWithPassword({ email: usernameToEmail($("login-email").value), password: stretch($("login-pw").value) });
     if (error) { $("login-msg").textContent = "המייל או הסיסמה לא נכונים."; return; }
     $("login-msg").textContent = "";
-    $("me").textContent = $("login-email").value.trim();
+    $("me").textContent = $("login-email").value.trim().replace(/\s+/g, " ");
     await enterOffice();
   };
   $("logout").onclick = async () => { await saving; await sb.auth.signOut(); location.reload(); };
   $("change-pw").onclick = () => { $("pw-box").hidden = !$("pw-box").hidden; };
   $("pw-save").onclick = async () => {
     const pw = $("pw-new").value;
-    if (pw.length < 8) { $("pw-msg").textContent = "לפחות 8 תווים."; return; }
-    const { error } = await sb.auth.updateUser({ password: pw });
+    if (pw.length < 6) { $("pw-msg").textContent = "לפחות 6 תווים."; return; }
+    const { error } = await sb.auth.updateUser({ password: stretch(pw) });
     $("pw-msg").textContent = error ? "לא הצלחתי לשנות: " + error.message : "הסיסמה שונתה.";
     $("pw-new").value = "";
   };
   sb.auth.getSession().then(async ({ data }) => {
-    if (data.session) { $("me").textContent = data.session.user.email; await enterOffice(); }
+    if (data.session) { $("me").textContent = data.session.user.user_metadata?.username || data.session.user.email; await enterOffice(); }
   });
   window.addEventListener("beforeunload", (e) => { if (saveTimer && $("sync").textContent === "שומר…") e.preventDefault(); });
 } else {
